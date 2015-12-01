@@ -72,11 +72,9 @@ class TabularCPD(Factor):
     evidence_card: integer, array-like
         cardinality of evidences (if any)
 
-    vstate_names: list
-        variable state names. nice names for variable states
+    statename_dict: dict
+        mapping from variable names to a list of nice state names
 
-    estate_names: list
-        evidence state names. nice names for evidence states
 
     Public Methods
     --------------
@@ -86,27 +84,14 @@ class TabularCPD(Factor):
     reduce([values_list])
     """
     def __init__(self, variable, variable_card, values,
-                 evidence=None, evidence_card=None,
-                 vstate_names=None, estate_names=None):
+                 evidence=None, evidence_card=None, statename_dict=None):
 
         self.variable = variable
         self.variable_card = None
         self.evidence = None
         self.evidence_card = None
-        self.estate_names = None
-        self.vstate_names = None
 
         variables = [variable]
-
-        if vstate_names is not None:
-            self.vstate_names = vstate_names
-            state_names = [vstate_names]
-        else:
-            state_names = None
-
-        if estate_names is not None:
-            self.estate_names = estate_names
-            state_names.extend(estate_names[::-1])
 
         if not isinstance(variable_card, int):
             raise TypeError("Event cardinality must be an integer")
@@ -144,7 +129,7 @@ class TabularCPD(Factor):
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
-        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'), state_names)
+        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'), statename_dict)
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
@@ -174,15 +159,13 @@ class TabularCPD(Factor):
             return self._make_table_str("fancy_grid")
 
     def _str(self, phi_or_p="p", tablefmt="fancy_grid"):
-        return super(self, TabularCPD)._str(phi_or_p, tablefmt)
+        return super(TabularCPD, self)._str(phi_or_p, tablefmt)
 
     def _make_table_str(self, tablefmt="fancy_grid"):
         headers_list = []
         # build column headers
         if self.evidence is not None:
-            estates = (list(map(range, self.evidence_card))
-                       if self.estate_names is None else
-                       self.estate_names)
+            estates = self.evidence_statenames
             col_indexes = np.array(list(product(*estates)))
             for i in range(len(self.evidence_card)):
                 column_header = [self.evidence[i]] + ['{d}'.format(s=self.evidence[i], d=d) for d in col_indexes.T[i]]
@@ -190,15 +173,28 @@ class TabularCPD(Factor):
                 headers_list.append(column_header)
 
         # Build row headers
-        vstates = (range(self.variable_card)
-                   if self.vstate_names is None else
-                   self.vstate_names)
+        vstates = self.variable_statenames
         variable_array = [['{v}={s}'.format(v=self.variable, s=s) for s in vstates]]
+        #variable_array = [vstates]
         # Stack with data
         labeled_rows = np.hstack((np.array(variable_array).T, self.get_cpd())).tolist()
         # No support for multi-headers in tabulate
         cdf_str = tabulate(headers_list + labeled_rows, tablefmt=tablefmt)
         return cdf_str
+
+    @property
+    def variable_statenames(self):
+        if self.statename_dict is None:
+            return list(map(str, range(self.variable_card)))
+        else:
+            return self.statename_dict[self.variable]
+
+    @property
+    def evidence_statenames(self):
+        if self.statename_dict is None:
+            return [list(map(str, range(card))) for card in self.evidence_card]
+        else:
+            return [self.statename_dict[v] for v in self.evidence]
 
     def _repr_html_(self):
         """

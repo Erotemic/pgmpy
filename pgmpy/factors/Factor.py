@@ -28,7 +28,7 @@ class Factor(object):
     reduce([variable_values_list])
     """
 
-    def __init__(self, variables, cardinality, values, state_names=None):
+    def __init__(self, variables, cardinality, values, statename_dict=None):
         """
         Initialize a factor class.
 
@@ -70,7 +70,8 @@ class Factor(object):
             using an ordering such that the left-most variables as defined in
             `variables` cycle through their values the fastest.
 
-        state_names
+        statename_dict: dict
+            dictionary that maps from variable names to the list of potential state names
 
         Examples
         --------
@@ -78,34 +79,81 @@ class Factor(object):
         >>> phi = Factor(['x1', 'x2', 'x3'], [2, 2, 2], np.ones(8))
         >>> phi
         <Factor representing phi(x1:2, x2:2, x3:2) at 0x7f8188fcaa90>
+        >>> from pgmpy.factors import Factor
+        >>> statename_dict = {
+        >>>     'x2': ['b1', 'b2', 'b3'],
+        >>>     'x3': ['c1', 'c2'],
+        >>>     'x4': ['d1', 'd2'],
+        >>> }
+        >>> statename_dict = statename_dict.copy()
+        >>> #phi2 = Factor(['x3', 'x4', 'x1'], , range(8))
+        >>> variables = ['x3', 'x4', 'x1']
+        >>> cardinality = [2, 2, 2]
+        >>> #cardinality = None
+        >>> values = range(8)
+        >>> phi2 = Factor(variables, cardinality, values, statename_dict)
         """
+        self.cardinality = None
+        self.statename_dict = None
+        self.values = None
+        self.variables = None
 
         values = np.array(values)
 
         if values.dtype != int and values.dtype != float:
             raise TypeError("Values: Expected type int or type float, got ", values.dtype)
 
-        if len(cardinality) != len(variables):
+        self.variables = list(variables)
+        self.statename_dict = statename_dict
+        self.cardinality = cardinality
+
+        if self.statename_dict is not None:
+
+            try:
+                _implicitcard = list(map(len, self.statenames))
+            except KeyError as ex:
+                raise ValueError(
+                     'Variable %s does not have cardinality or a value in statename_dict' % (ex,))
+            if self.cardinality is None:
+                self.cardinality = _implicitcard
+
+            if self.cardinality is not None:
+                if not np.all(_implicitcard == self.cardinality):
+                    raise ValueError('cardinality does not agree with state names')
+
+        if self.cardinality is None:
+            assert self.cardinality is not None, 'cannot infer cardinality'
+
+        self.cardinality = np.array(self.cardinality, dtype=int)
+        self.values = values.reshape(self.cardinality)
+
+        if len(self.cardinality) != len(self.variables):
             raise ValueError("Number of elements in cardinality must be equal to number of variables")
 
-        if values.size != np.product(cardinality):
-            raise ValueError("Values array must be of size: {size}".format(size=np.product(cardinality)))
+        if self.values.size != np.product(self.cardinality):
+            raise ValueError("Values array must be of size: {size}".format(size=np.product(self.cardinality)))
 
-        if state_names is not None:
-            self.state_names = state_names
-            _aliascard = list(map(len, state_names))
-            if cardinality is None:
-                cardinality = _aliascard
-            assert np.all(_aliascard == cardinality), (
-                'cardinality does not agree with state names')
+    @property
+    def statenames(self):
+        if self.statename_dict is None:
+            # Old approach
+            return [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                    for var, card in zip(self.variables, self.cardinality)]
+            #return [list(map(str, range(card))) for card in self.cardinality]
+        elif self.cardinality is None:
+            # New approach
+            return [self.statename_dict[var] for var in self.variables]
         else:
-            state_names = [["{var}_{i}".format(var=var, i=i) for i in range(card)]
-                             for (var, card) in zip(variables, cardinality)]
-
-        self.variables = list(variables)
-        self.cardinality = np.array(cardinality, dtype=int)
-        self.values = values.reshape(cardinality)
-        self.state_names = None
+            # Hybrid aproach
+            statename_lists = [
+                (
+                    self.statename_dict[var]
+                    if self.statename_dict.get(var, None) is not None else
+                    ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                )
+                for var, card in zip(self.variables, self.cardinality)
+            ]
+            return statename_lists
 
     def scope(self):
         """
@@ -519,14 +567,26 @@ class Factor(object):
         Example
         -------
         >>> from pgmpy.factors import Factor
-        >>> phi1 = Factor(['x1', 'x2', 'x3'], [2, 3, 2], range(12))
-        >>> phi2 = Factor(['x3', 'x4', 'x1'], [2, 2, 2], range(8))
-        >>> phi1.product(phi2, inplace=True)
-        >>> phi1.variables
+        >>> statename_dict = {
+        >>>     'x1': ['a1', 'a2'],
+        >>>     'x2': ['b1', 'b2', 'b3'],
+        >>>     'x3': ['c1', 'c2'],
+        >>>     'x4': ['d1', 'd2'],
+        >>> }
+        >>> statename_dict1 = statename_dict.copy()
+        >>> del statename_dict1['x4']
+        >>> statename_dict2 = statename_dict.copy()
+        >>> del statename_dict2['x2']
+        >>> #phi1 = Factor(['x1', 'x2', 'x3'], [2, 3, 2], range(12))
+        >>> #phi2 = Factor(['x3', 'x4', 'x1'], [2, 2, 2], range(8))
+        >>> phi1 = Factor(['x1', 'x2', 'x3'], None, range(12), statename_dict1)
+        >>> phi2 = Factor(['x3', 'x4', 'x1'], None, range(8), statename_dict2)
+        >>> phi3 = phi1.product(phi2, inplace=False)
+        >>> phi3.variables
         ['x1', 'x2', 'x3', 'x4']
-        >>> phi1.cardinality
+        >>> phi3.cardinality
         array([2, 3, 2, 2])
-        >>> phi1.values
+        >>> phi3.values
         array([[[[ 0,  0],
                  [ 4,  6]],
 
@@ -545,12 +605,19 @@ class Factor(object):
 
                 [[10, 30],
                  [55, 77]]]]
+        >>> print(phi3._str(tablefmt='fancy_grid'))
         """
         phi = self if inplace else self.copy()
         if isinstance(phi1, (int, float)):
             phi.values *= phi1
         else:
             phi1 = phi1.copy()
+
+            if phi1.statename_dict is not None:
+                if phi.statename_dict is None:
+                    phi.statename_dict = phi1.statename_dict.copy()
+                else:
+                    phi.statename_dict.update(phi1.statename_dict)
 
             # modifying phi to add new variables
             extra_vars = set(phi1.variables) - set(phi.variables)
@@ -678,7 +745,9 @@ class Factor(object):
         """
         # not creating a new copy of self.values and self.cardinality
         # because __init__ methods does that.
-        return Factor(self.scope(), self.cardinality, self.values)
+        statename_dict = (self.statename_dict.copy()
+                          if self.statename_dict is not None else None)
+        return Factor(self.scope(), self.cardinality, self.values, statename_dict)
 
     def __str__(self):
         if six.PY2:
@@ -702,9 +771,11 @@ class Factor(object):
 
         value_index = 0
         factor_table = []
-        for prob in product(*[range(card) for card in self.cardinality]):
-            prob_list = ["{s}_{d}".format(s=list(self.variables)[i], d=prob[i])
-                         for i in range(len(self.variables))]
+        #for prob in product(*[range(card) for card in self.cardinality]):
+        for prob in product(*self.statenames):
+            #prob_list = ["{s}_{d}".format(s=list(self.variables)[i], d=prob[i])
+            #             for i in range(len(self.variables))]
+            prob_list = [prob[i] for i in range(len(self.variables))]
             prob_list.append(self.values.ravel()[value_index])
             factor_table.append(prob_list)
             value_index += 1
