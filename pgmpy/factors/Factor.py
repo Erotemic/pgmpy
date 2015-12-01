@@ -28,7 +28,7 @@ class Factor(object):
     reduce([variable_values_list])
     """
 
-    def __init__(self, variables, cardinality, values):
+    def __init__(self, variables, cardinality, values, state_names=None):
         """
         Initialize a factor class.
 
@@ -70,6 +70,8 @@ class Factor(object):
             using an ordering such that the left-most variables as defined in
             `variables` cycle through their values the fastest.
 
+        state_names
+
         Examples
         --------
         >>> from pgmpy.factors import Factor
@@ -89,9 +91,21 @@ class Factor(object):
         if values.size != np.product(cardinality):
             raise ValueError("Values array must be of size: {size}".format(size=np.product(cardinality)))
 
+        if state_names is not None:
+            self.state_names = state_names
+            _aliascard = list(map(len, state_names))
+            if cardinality is None:
+                cardinality = _aliascard
+            assert np.all(_aliascard == cardinality), (
+                'cardinality does not agree with state names')
+        else:
+            state_names = [["{var}_{i}".format(var=var, i=i) for i in range(card)]
+                             for (var, card) in zip(variables, cardinality)]
+
         self.variables = list(variables)
         self.cardinality = np.array(cardinality, dtype=int)
         self.values = values.reshape(cardinality)
+        self.state_names = None
 
     def scope(self):
         """
@@ -171,7 +185,7 @@ class Factor(object):
         rev_card = self.cardinality[::-1]
         for i, card in enumerate(rev_card):
             assignments[:, i] = index % card
-            index = index//card
+            index = index // card
 
         assignments = assignments[:, ::-1]
 

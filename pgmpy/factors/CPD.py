@@ -72,6 +72,12 @@ class TabularCPD(Factor):
     evidence_card: integer, array-like
         cardinality of evidences (if any)
 
+    vstate_names: list
+        variable state names. nice names for variable states
+
+    estate_names: list
+        evidence state names. nice names for evidence states
+
     Public Methods
     --------------
     get_cpd()
@@ -80,14 +86,27 @@ class TabularCPD(Factor):
     reduce([values_list])
     """
     def __init__(self, variable, variable_card, values,
-                 evidence=None, evidence_card=None):
+                 evidence=None, evidence_card=None,
+                 vstate_names=None, estate_names=None):
 
         self.variable = variable
         self.variable_card = None
         self.evidence = None
         self.evidence_card = None
+        self.estate_names = None
+        self.vstate_names = None
 
         variables = [variable]
+
+        if vstate_names is not None:
+            self.vstate_names = vstate_names
+            state_names = [vstate_names]
+        else:
+            state_names = None
+
+        if estate_names is not None:
+            self.estate_names = estate_names
+            state_names.extend(estate_names[::-1])
 
         if not isinstance(variable_card, int):
             raise TypeError("Event cardinality must be an integer")
@@ -120,11 +139,12 @@ class TabularCPD(Factor):
             if not len(evidence_card) == len(evidence):
                 raise exceptions.CardinalityError("Cardinality of all "
                                                   "evidences not specified")
+
         values = np.array(values)
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
-        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'))
+        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'), state_names)
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
@@ -160,13 +180,20 @@ class TabularCPD(Factor):
         headers_list = []
         # build column headers
         if self.evidence is not None:
-            col_indexes = np.array(list(product(*[range(i) for i in self.evidence_card])))
+            estates = (list(map(range, self.evidence_card))
+                       if self.estate_names is None else
+                       self.estate_names)
+            col_indexes = np.array(list(product(*estates)))
             for i in range(len(self.evidence_card)):
-                column_header = [self.evidence[i]] + ['{s}_{d}'.format(s=self.evidence[i], d=d) for d in col_indexes.T[i]]
+                column_header = [self.evidence[i]] + ['{d}'.format(s=self.evidence[i], d=d) for d in col_indexes.T[i]]
+                #['{s}_{d}'.format(s=self.evidence[i], d=d) for d in col_indexes.T[i]]
                 headers_list.append(column_header)
 
         # Build row headers
-        variable_array = [['{s}_{d}'.format(s=self.variable, d=i) for i in range(self.variable_card)]]
+        vstates = (range(self.variable_card)
+                   if self.vstate_names is None else
+                   self.vstate_names)
+        variable_array = [['{v}={s}'.format(v=self.variable, s=s) for s in vstates]]
         # Stack with data
         labeled_rows = np.hstack((np.array(variable_array).T, self.get_cpd())).tolist()
         # No support for multi-headers in tabulate
