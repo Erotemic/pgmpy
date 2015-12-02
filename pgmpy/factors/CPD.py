@@ -184,17 +184,11 @@ class TabularCPD(Factor):
 
     @property
     def variable_statenames(self):
-        if self.statename_dict is None:
-            return list(map(str, range(self.variable_card)))
-        else:
-            return self.statename_dict[self.variable]
+        return self._statenames([self.variable], [self.variable_card])[0]
 
     @property
     def evidence_statenames(self):
-        if self.statename_dict is None:
-            return [list(map(str, range(card))) for card in self.evidence_card]
-        else:
-            return [self.statename_dict[v] for v in self.evidence]
+        return self._statenames(self.evidence, self.evidence_card)
 
     def _repr_html_(self):
         """

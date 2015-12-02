@@ -135,14 +135,19 @@ class Factor(object):
 
     @property
     def statenames(self):
+        return self._statenames()
+
+    def _statenames(self, variables=None, cardinality=None):
+        if variables is None and cardinality is None:
+            variables = self.variables
+            cardinality = self.cardinality
         if self.statename_dict is None:
             # Old approach
             return [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
-                    for var, card in zip(self.variables, self.cardinality)]
-            #return [list(map(str, range(card))) for card in self.cardinality]
+                    for var, card in zip(variables, cardinality)]
         elif self.cardinality is None:
             # New approach
-            return [self.statename_dict[var] for var in self.variables]
+            return [self.statename_dict[var] for var in variables]
         else:
             # Hybrid aproach
             statename_lists = [
@@ -151,7 +156,7 @@ class Factor(object):
                     if self.statename_dict.get(var, None) is not None else
                     ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
                 )
-                for var, card in zip(self.variables, self.cardinality)
+                for var, card in zip(variables, cardinality)
             ]
             return statename_lists
 
