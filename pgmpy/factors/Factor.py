@@ -747,7 +747,6 @@ class Factor(object):
         array([[[ 0,  1,  2],
                 [ 3,  4,  5],
                 [ 6,  7,  8]],
-
                [[ 9, 10, 11],
                 [12, 13, 14],
                 [15, 16, 17]]])
@@ -765,7 +764,7 @@ class Factor(object):
         else:
             return self._str(phi_or_p='phi')
 
-    def _str(self, phi_or_p="phi", tablefmt="fancy_grid"):
+    def _str(self, phi_or_p="phi", tablefmt="fancy_grid", sort=False):
         """
         Generate the string from `__str__` method.
 
@@ -774,21 +773,25 @@ class Factor(object):
         phi_or_p: 'phi' | 'p'
                 'phi': When used for Factors.
                   'p': When used for CPDs.
+        tablefmt: argument to tabulate
+        sort: indicates if rows should be sorted by value
+            if 1 or True value are sorted in ascending order
+            if -1 values are sorted in descending order
         """
         string_header = list(self.scope())
         string_header.append('{phi_or_p}({variables})'.format(
             phi_or_p=phi_or_p, variables=','.join(string_header)))
 
-        value_index = 0
         factor_table = []
-        #for prob in product(*[range(card) for card in self.cardinality]):
-        for prob in product(*self.statenames):
-            #prob_list = ["{s}_{d}".format(s=list(self.variables)[i], d=prob[i])
-            #             for i in range(len(self.variables))]
-            prob_list = [prob[i] for i in range(len(self.variables))]
-            prob_list.append(self.values.ravel()[value_index])
-            factor_table.append(prob_list)
-            value_index += 1
+
+        row_values = self.values.ravel()
+        row_labels = list(product(*self.statenames))
+        factor_table = [list(lbls) + [val]
+                        for lbls, val in zip(row_labels, row_values)]
+
+        if sort:
+            sortx = row_values.argsort()[::sort]
+            factor_table = [factor_table[row] for row in sortx]
 
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
