@@ -367,7 +367,7 @@ class TabularCPD(Factor):
         >>> factor
 
         """
-        return Factor(self.variables, self.cardinality, self.values)
+        return Factor(self.variables, self.cardinality, self.values, self.statename_dict)
 
 
 # Commenting out because not used anywhere for now and not implemented in a very good way.

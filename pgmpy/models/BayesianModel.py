@@ -114,7 +114,7 @@ class BayesianModel(DirectedGraph):
                  'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
         else:
             super(BayesianModel, self).add_edge(u, v, **kwargs)
-        
+
     def add_cpds(self, *cpds):
         """
         Add CPD (Conditional Probability Distribution) to the Bayesian Model.
@@ -471,7 +471,6 @@ class BayesianModel(DirectedGraph):
         moral_graph = self.moralize()
         mm = MarkovModel(moral_graph.edges())
         mm.add_factors(*[cpd.to_factor() for cpd in self.cpds])
-
         return mm
 
     def to_junction_tree(self):

@@ -54,7 +54,7 @@ class DBNInference(Inference):
        References:
        ----------
        [1] Dynamic Bayesian Networks: Representation, Inference and Learning
-           by Kevin Patrick Murphy 
+           by Kevin Patrick Murphy
            http://www.cs.ubc.ca/~murphyk/Thesis/thesis.pdf
 
        Public Methods:
@@ -63,7 +63,7 @@ class DBNInference(Inference):
        backward_inference
        query
         """
-        super().__init__(model)
+        super(DBNInference, self).__init__(model)
         self.interface_nodes_0 = model.get_interface_nodes(time_slice=0)
         self.interface_nodes_1 = model.get_interface_nodes(time_slice=1)
 
@@ -208,7 +208,8 @@ class DBNInference(Inference):
            The new timeslice to which the factor should belong to.
         """
         new_scope = self._shift_nodes(factor.scope(), shift)
-        return Factor(new_scope, factor.cardinality, factor.values)
+        return Factor(new_scope, factor.cardinality, factor.values,
+                      factor.statename_dict)
 
     def forward_inference(self, variables, evidence=None, args=None):
         """
@@ -288,7 +289,9 @@ class DBNInference(Inference):
                 changed_values = {}
                 for key in new_values.keys():
                     new_key = (key[0], time_slice)
-                    new_factor = Factor([new_key], new_values[key].cardinality, new_values[key].values)
+                    # TODO: copy namestate_dict
+                    new_factor = Factor([new_key], new_values[key].cardinality,
+                                        new_values[key].values)
                     changed_values[new_key] = new_factor
                 factor_values.update(changed_values)
 
@@ -379,7 +382,8 @@ class DBNInference(Inference):
                 changed_values = {}
                 for key in new_values.keys():
                     new_key = (key[0], time_slice)
-                    new_factor = Factor([new_key], new_values[key].cardinality, new_values[key].values)
+                    new_factor = Factor([new_key], new_values[key].cardinality,
+                                        new_values[key].values)
                     changed_values[new_key] = new_factor
                 factor_values.update(changed_values)
 

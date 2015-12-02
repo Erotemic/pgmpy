@@ -265,9 +265,10 @@ class Factor(object):
 
                [[ 1.,  1.],
                 [ 1.,  1.],
-                [ 1.,  1.]]]
+                [ 1.,  1.]]])
         """
-        return Factor(self.variables, self.cardinality, np.ones(self.values.size))
+        return Factor(self.variables, self.cardinality,
+                      np.ones(self.values.size), self.statename_dict)
 
     def marginalize(self, variables, inplace=True):
         """
@@ -349,7 +350,7 @@ class Factor(object):
         >>> phi.values
         array([[ 0.25,  0.35],
                [ 0.05,  0.07],
-               [ 0.15,  0.21]]
+               [ 0.15,  0.21]])
         """
         if isinstance(variables, six.string_types):
             raise TypeError("variables: Expected type list or array-like, got type str")
@@ -402,7 +403,7 @@ class Factor(object):
 
                [[ 0.09090909,  0.10606061],
                 [ 0.12121212,  0.13636364],
-                [ 0.15151515,  0.16666667]]]
+                [ 0.15151515,  0.16666667]]])
 
         """
         phi = self if inplace else self.copy()
@@ -508,13 +509,19 @@ class Factor(object):
                  [45, 63]],
 
                 [[10, 30],
-                 [55, 77]]]]
+                 [55, 77]]]])
         """
         phi = self if inplace else self.copy()
         if isinstance(phi1, (int, float)):
             phi.values += phi1
         else:
             phi1 = phi1.copy()
+
+            if phi1.statename_dict is not None:
+                if phi.statename_dict is None:
+                    phi.statename_dict = phi1.statename_dict.copy()
+                else:
+                    phi.statename_dict.update(phi1.statename_dict)
 
             # modifying phi to add new variables
             extra_vars = set(phi1.variables) - set(phi.variables)
@@ -596,7 +603,6 @@ class Factor(object):
                 [[ 0,  8],
                  [20, 30]]],
 
-
                [[[ 6, 18],
                  [35, 49]],
 
@@ -604,10 +610,11 @@ class Factor(object):
                  [45, 63]],
 
                 [[10, 30],
-                 [55, 77]]]]
+                 [55, 77]]]])
         >>> print(phi3._str(tablefmt='fancy_grid'))
         """
         phi = self if inplace else self.copy()
+
         if isinstance(phi1, (int, float)):
             phi.values *= phi1
         else:
@@ -684,13 +691,15 @@ class Factor(object):
 
                [[ 3.        ,  1.75      ],
                 [ 4.        ,  2.25      ],
-                [ 5.        ,  2.75      ]]]
+                [ 5.        ,  2.75      ]]])
         """
         phi = self if inplace else self.copy()
         phi1 = phi1.copy()
 
         if set(phi1.variables) - set(phi.variables):
             raise ValueError("Scope of divisor should be a subset of dividend")
+
+        # TODO: update phi.statename_dict if needed
 
         # Adding extra variables in phi1.
         extra_vars = set(phi.variables) - set(phi1.variables)
@@ -741,13 +750,14 @@ class Factor(object):
 
                [[ 9, 10, 11],
                 [12, 13, 14],
-                [15, 16, 17]]]
+                [15, 16, 17]]])
         """
         # not creating a new copy of self.values and self.cardinality
         # because __init__ methods does that.
         statename_dict = (self.statename_dict.copy()
                           if self.statename_dict is not None else None)
-        return Factor(self.scope(), self.cardinality, self.values, statename_dict)
+        return Factor(self.scope(), self.cardinality, self.values,
+                      statename_dict)
 
     def __str__(self):
         if six.PY2:
@@ -766,8 +776,8 @@ class Factor(object):
                   'p': When used for CPDs.
         """
         string_header = list(self.scope())
-        string_header.append('{phi_or_p}({variables})'.format(phi_or_p=phi_or_p,
-                                                              variables=','.join(string_header)))
+        string_header.append('{phi_or_p}({variables})'.format(
+            phi_or_p=phi_or_p, variables=','.join(string_header)))
 
         value_index = 0
         factor_table = []
@@ -780,12 +790,15 @@ class Factor(object):
             factor_table.append(prob_list)
             value_index += 1
 
-        return tabulate(factor_table, headers=string_header, tablefmt=tablefmt, floatfmt=".4f")
+        return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
+                        floatfmt=".4f")
 
     def __repr__(self):
-        var_card = ", ".join(['{var}:{card}'.format(var=var, card=card)
-                              for var, card in zip(self.variables, self.cardinality)])
-        return "<Factor representing phi({var_card}) at {address}>".format(address=hex(id(self)), var_card=var_card)
+        var_card = ", ".join([
+            '{var}:{card}'.format(var=var, card=card)
+            for var, card in zip(self.variables, self.cardinality)])
+        return "<Factor representing phi({var_card}) at {address}>".format(
+            address=hex(id(self)), var_card=var_card)
 
     def __mul__(self, other):
         return self.product(other, inplace=False)
@@ -875,7 +888,7 @@ def factor_product(*args):
              [45, 63]],
 
             [[10, 30],
-             [55, 77]]]]
+             [55, 77]]]])
     """
     if not all(isinstance(phi, Factor) for phi in args):
         raise TypeError("Arguments must be factors")
@@ -912,11 +925,14 @@ def factor_divide(phi1, phi2):
     array([[[ 0.        ,  0.33333333],
             [ 2.        ,  1.        ],
             [ 4.        ,  1.66666667]],
-
            [[ 3.        ,  1.75      ],
             [ 4.        ,  2.25      ],
-            [ 5.        ,  2.75      ]]]
+            [ 5.        ,  2.75      ]]])
     """
     if not isinstance(phi1, Factor) or not isinstance(phi2, Factor):
         raise TypeError("phi1 and phi2 should be factors instances")
     return phi1.divide(phi2, inplace=False)
+
+
+# Search for constructors that need modification
+# grep -ER "Factor\(" | grep -v '>>>' | grep -v 'test' | grep -E "Factor\("
