@@ -154,14 +154,14 @@ class TabularCPD(Factor):
 
     def __str__(self):
         if six.PY2:
-            return self._make_table_str("grid")
+            return self._cpdstr("grid")
         else:
-            return self._make_table_str("fancy_grid")
+            return self._cpdstr("fancy_grid")
 
     def _str(self, phi_or_p="p", tablefmt="fancy_grid"):
         return super(TabularCPD, self)._str(phi_or_p, tablefmt)
 
-    def _make_table_str(self, tablefmt="fancy_grid"):
+    def _cpdstr(self, tablefmt="fancy_grid"):
         headers_list = []
         # build column headers
         if self.evidence is not None:

@@ -769,7 +769,7 @@ class Factor(object):
         else:
             return self._str(phi_or_p='phi')
 
-    def _str(self, phi_or_p="phi", tablefmt="fancy_grid", sort=False):
+    def _str(self, phi_or_p="phi", tablefmt="fancy_grid", sort=False, maxrows=None):
         """
         Generate the string from `__str__` method.
 
@@ -797,6 +797,10 @@ class Factor(object):
         if sort:
             sortx = row_values.argsort()[::sort]
             factor_table = [factor_table[row] for row in sortx]
+
+        if maxrows is not None and maxrows < len(factor_table):
+            factor_table = factor_table[:maxrows]
+            factor_table.append(['...'] * len(string_header))
 
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
@@ -900,6 +904,7 @@ def factor_product(*args):
     """
     if not all(isinstance(phi, Factor) for phi in args):
         raise TypeError("Arguments must be factors")
+    assert len(args) > 0, 'not enough arguments given'
     return reduce(lambda phi1, phi2: phi1 * phi2, args)
 
 

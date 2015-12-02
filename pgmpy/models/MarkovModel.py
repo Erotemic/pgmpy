@@ -180,7 +180,7 @@ class MarkovModel(UndirectedGraph):
         """
         Returns a dictionary with the given factors as keys and their respective
         cardinality as values.
-        
+
         Parameters
         ----------
         check_cardinality: boolean, optional
@@ -197,7 +197,7 @@ class MarkovModel(UndirectedGraph):
         >>> student.add_factors(factor)
         >>> student.get_cardinality()
         defaultdict(<class 'int'>, {'Bob': 2, 'Alice': 2})
-        
+
         """
         cardinalities = defaultdict(int)
         for factor in self.factors:
@@ -210,7 +210,7 @@ class MarkovModel(UndirectedGraph):
     def check_model(self):
         """
         Check the model for various errors. This method checks for the following
-        errors - 
+        errors -
 
         * Checks if the cardinalities of all the variables are consistent across all the factors.
         * Factors are defined for all the random variables.
@@ -502,7 +502,14 @@ class MarkovModel(UndirectedGraph):
         # If false, then it is not used to create any clique potential
         is_used = {factor: False for factor in self.factors}
 
-        for node in clique_trees.nodes():
+        # sort nodes by descending degree
+        # (This seems to stop a bug where len(clique_factors) == 0)
+        node_to_degree = clique_trees.degree()
+        sorted_nodes = [x[1] for x in sorted(
+            [(deg, node) for node, deg in node_to_degree.items()]
+        )][::-1]
+
+        for node in sorted_nodes:
             clique_factors = []
             for factor in self.factors:
                 # If the factor is not used in creating any clique potential as
@@ -671,7 +678,7 @@ class MarkovModel(UndirectedGraph):
 
         factor = self.factors[0]
         factor = factor_product(factor, *[self.factors[i] for i in
-                                  range(1, len(self.factors))])
+                                range(1, len(self.factors))])
         if set(factor.scope()) != set(self.nodes()):
             raise ValueError('Factor for all the random variables not defined.')
 
