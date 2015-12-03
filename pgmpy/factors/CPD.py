@@ -267,7 +267,7 @@ class TabularCPD(Factor):
         else:
             tabular_cpd = TabularCPD(self.variable, self.variable_card,
                                      self.get_cpd(), self.evidence,
-                                     self.evidence_card)
+                                     self.evidence_card, self.statename_dict)
         cpd = tabular_cpd.get_cpd()
         tabular_cpd.values = (cpd / cpd.sum(axis=0)).flatten('C')
 
@@ -302,7 +302,7 @@ class TabularCPD(Factor):
         else:
             tabular_cpd = TabularCPD(self.variable, self.variable_card,
                                      self.get_cpd(), self.evidence,
-                                     self.evidence_card)
+                                     self.evidence_card, self.statename_dict)
 
         super(TabularCPD, tabular_cpd).marginalize(variables)
         tabular_cpd.normalize()
@@ -338,7 +338,7 @@ class TabularCPD(Factor):
         else:
             tabular_cpd = TabularCPD(self.variable, self.variable_card,
                                      self.get_cpd(), self.evidence,
-                                     self.evidence_card)
+                                     self.evidence_card, self.statename_dict)
 
         super(TabularCPD, tabular_cpd).reduce(values)
         tabular_cpd.normalize()

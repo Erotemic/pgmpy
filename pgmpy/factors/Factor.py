@@ -108,7 +108,6 @@ class Factor(object):
         self.cardinality = cardinality
 
         if self.statename_dict is not None:
-
             try:
                 _implicitcard = list(map(len, self.statenames))
             except KeyError as ex:
@@ -136,6 +135,11 @@ class Factor(object):
     @property
     def statenames(self):
         return self._statenames()
+
+    def statename_to_index(self, variable, name):
+        # TODO: build mapping instead
+        var_idx = self.statename_dict[variable].index(name)
+        return var_idx
 
     def _statenames(self, variables=None, cardinality=None):
         if variables is None and cardinality is None:
