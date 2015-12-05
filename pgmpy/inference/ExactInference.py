@@ -29,6 +29,7 @@ class VariableElimination(Inference):
             list of variables representing the order in which they
             are to be eliminated. If None order is computed automatically.
         """
+        #evidence = self._ensure_internal_evidence(evidence)
         # Dealing with the case when variables is not provided.
         if not variables:
             all_factors = []
@@ -185,6 +186,7 @@ class VariableElimination(Inference):
         >>> inference = VariableElimination(model)
         >>> phi_query = inference.map_query(['A', 'B'])
         """
+        #evidence = self._ensure_internal_evidence(evidence)
         elimination_variables = set(self.variables) - set(evidence.keys()) if evidence else set()
         final_distribution = self._variable_elimination(elimination_variables, 'maximize',
                                                         evidence=evidence,
@@ -543,6 +545,7 @@ class BeliefPropagation(Inference):
         Algorithm 10.4 Out-of-clique inference in clique tree
         Probabilistic Graphical Models: Principles and Techniques Daphne Koller and Nir Friedman.
         """
+        #evidence = self._ensure_internal_evidence(evidence)
         is_calibrated = self._is_converged(operation=operation)
         # Calibrate the junction tree if not calibrated
         if not is_calibrated:
@@ -640,6 +643,7 @@ class BeliefPropagation(Inference):
         ...                     [0.1, 0.55, 0.2, 0.9]],
         ...                    ['G', 'J'], [2, 2])
         >>> cpd_g = TabularCPD('G', 2, [[0.6], [0.4]])
+        >>> bayesian_model.add_cpds(cpd_a, cpd_r, cpd_j, cpd_q, cpd_l, cpd_g)
         >>> belief_propagation = BeliefPropagation(bayesian_model)
         >>> belief_propagation.query(variables=['J', 'Q'],
         ...                          evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})
@@ -680,6 +684,7 @@ class BeliefPropagation(Inference):
         ...                     [0.1, 0.55, 0.2, 0.9]],
         ...                    ['G', 'J'], [2, 2])
         >>> cpd_g = TabularCPD('G', 2, [[0.6], [0.4]])
+        >>> bayesian_model.add_cpds(cpd_a, cpd_r, cpd_j, cpd_q, cpd_l, cpd_g)
         >>> belief_propagation = BeliefPropagation(bayesian_model)
         >>> belief_propagation.map_query(variables=['J', 'Q'],
         ...                              evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})

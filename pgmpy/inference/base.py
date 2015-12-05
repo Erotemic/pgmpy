@@ -9,6 +9,7 @@ from pgmpy.models import FactorGraph
 from pgmpy.models import JunctionTree
 from pgmpy.models import DynamicBayesianNetwork
 from pgmpy.exceptions import ModelError
+from pgmpy.extern import six
 
 
 class Inference(object):
@@ -89,3 +90,26 @@ class Inference(object):
             self.interface_nodes = model.get_interface_nodes(0)
             self.one_and_half_model = BayesianModel(model.get_inter_edges() + model.get_intra_edges(1))
             self.one_and_half_model.add_cpds(*(model.get_cpds(time_slice=1) + cpd_inter))
+
+    def _ensure_internal_evidence(self, external_evidence, model):
+        """
+        Ensures that the evidence dictionary uses internal indicies.
+
+        If external string indicies are given, then this function maps them to the
+        appropriate internal integral index.
+
+        TODO: Use this function to rectify external state names with internal
+        ones.
+        """
+        #model = self.model
+        if not hasattr(model, 'var2_cpd'):
+            raise NotImplementedError('implement var2_cpd')
+        if external_evidence is None:
+            return external_evidence
+        evidence = {}
+        for key, val in external_evidence.items():
+            if isinstance(val, six.string_types):
+                evidence[key] = model.var2_cpd[key]._internal_varindex(key, val)
+            else:
+                evidence[key] = val
+        return evidence

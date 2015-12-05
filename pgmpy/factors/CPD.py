@@ -180,6 +180,10 @@ class TabularCPD(Factor):
         labeled_rows = np.hstack((np.array(variable_array).T, self.get_cpd())).tolist()
         # No support for multi-headers in tabulate
         cdf_str = tabulate(headers_list + labeled_rows, tablefmt=tablefmt)
+        # HACK: to get header separation
+        #headers_str = tabulate(headers_list, tablefmt=tablefmt)
+        #row_str = tabulate(labeled_rows, tablefmt=tablefmt)
+        #cdf_str = '\n'.join([headers_str, row_str]) + 'foobar'
         return cdf_str
 
     @property

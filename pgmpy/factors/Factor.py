@@ -136,9 +136,12 @@ class Factor(object):
     def statenames(self):
         return self._statenames()
 
-    def statename_to_index(self, variable, name):
+    def _internal_varindex(self, variable, statename):
+        """
+        maps from an external statename of a variable to its internal index
+        """
         # TODO: build mapping instead
-        var_idx = self.statename_dict[variable].index(name)
+        var_idx = self.statename_dict[variable].index(statename)
         return var_idx
 
     def _statenames(self, variables=None, cardinality=None):
