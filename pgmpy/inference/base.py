@@ -92,10 +92,13 @@ class Inference(object):
             self.one_and_half_model.add_cpds(*(model.get_cpds(time_slice=1) + cpd_inter))
 
         # Register statenames of factors
-        self.statename_dict = {
-            varname: factors[0].statename_dict[varname]
-            for varname, factors in self.factors.items()
-        }
+        if any(factors[0].statename_dict is None for factors in self.factors.values()):
+            self.statename_dict = None
+        else:
+            self.statename_dict = {
+                varname: factors[0].statename_dict[varname]
+                for varname, factors in self.factors.items()
+            }
 
     def _ensure_internal_evidence(self, external_evidence, model):
         """

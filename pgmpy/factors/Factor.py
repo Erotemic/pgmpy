@@ -80,7 +80,6 @@ class Factor(object):
         --------
         >>> from pgmpy.factors import Factor
         >>> phi = Factor(['x1', 'x2', 'x3'], [2, 2, 2], np.ones(8))
-        >>> phi
         <Factor representing phi(x1:2, x2:2, x3:2) at 0x7f8188fcaa90>
         >>> from pgmpy.factors import Factor
         >>> statename_dict = {
@@ -904,6 +903,19 @@ class Factor(object):
 
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
+
+    def map_bruteforce(self, query_variables, evidence={}):
+        """ if this is a joint distribution compute MAP """
+        joint = self.reduce(evidence, inplace=False)
+        # Marginalize over non-query, non-evidence
+        irrelevant_vars = set(joint.variables) - (set(evidence.keys()) | set(query_variables))
+        joint.marginalize(irrelevant_vars)
+        joint.normalize()
+        new_rows = joint._row_labels()
+        new_vals = joint.values.ravel()
+        map_vals = new_rows[new_vals.argmax()]
+        map_assign = dict(zip(joint.variables, map_vals))
+        return map_assign
 
     def __repr__(self):
         var_card = ", ".join([
