@@ -139,12 +139,15 @@ class VariableElimination(Inference):
         >>> import pandas as pd
         >>> from pgmpy.models import BayesianModel
         >>> from pgmpy.inference import VariableElimination
-        >>> values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
+        >>> rng = np.random.RandomState(0)
+        >>> values = pd.DataFrame(rng.randint(low=0, high=2, size=(1000, 5)),
         ...                       columns=['A', 'B', 'C', 'D', 'E'])
         >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
         >>> model.fit(values)
         >>> inference = VariableElimination(model)
         >>> phi_query = inference.max_marginal(['A', 'B'])
+        >>> print('%.4f' % (phi_query,))
+        0.2762
         """
         if not variables:
             variables = []
@@ -185,6 +188,7 @@ class VariableElimination(Inference):
         >>> model.fit(values)
         >>> inference = VariableElimination(model)
         >>> phi_query = inference.map_query(['A', 'B'])
+        {'A': 1, 'B': 0}
         """
         #evidence = self._ensure_internal_evidence(evidence)
         elimination_variables = set(self.variables) - set(evidence.keys()) if evidence else set()
@@ -538,7 +542,7 @@ class BeliefPropagation(Inference):
         >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
         >>> model.fit(values)
         >>> inference = BeliefPropagation(model)
-        >>> phi_query = inference.query(['A', 'B'])
+        >>> phi_query = inference._query(['A', 'B'], 'marginalize')
 
         References
         ----------
@@ -645,8 +649,22 @@ class BeliefPropagation(Inference):
         >>> cpd_g = TabularCPD('G', 2, [[0.6], [0.4]])
         >>> bayesian_model.add_cpds(cpd_a, cpd_r, cpd_j, cpd_q, cpd_l, cpd_g)
         >>> belief_propagation = BeliefPropagation(bayesian_model)
-        >>> belief_propagation.query(variables=['J', 'Q'],
-        ...                          evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})
+        >>> res = belief_propagation.query(variables=['J', 'Q'],
+        ...                                evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})
+        >>> print(res['J']._str(tablefmt='psql'))
+        +-----+----------+
+        | J   |   phi(J) |
+        |-----+----------|
+        | J_0 |   0.8182 |
+        | J_1 |   0.1818 |
+        +-----+----------+
+        >>> print(res['Q']._str(tablefmt='psql'))
+        +-----+----------+
+        | Q   |   phi(Q) |
+        |-----+----------|
+        | Q_0 |   0.7727 |
+        | Q_1 |   0.2273 |
+        +-----+----------+
         """
         return self._query(variables=variables, operation='marginalize', evidence=evidence)
 
@@ -686,8 +704,10 @@ class BeliefPropagation(Inference):
         >>> cpd_g = TabularCPD('G', 2, [[0.6], [0.4]])
         >>> bayesian_model.add_cpds(cpd_a, cpd_r, cpd_j, cpd_q, cpd_l, cpd_g)
         >>> belief_propagation = BeliefPropagation(bayesian_model)
-        >>> belief_propagation.map_query(variables=['J', 'Q'],
-        ...                              evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})
+        >>> map_res = belief_propagation.map_query(variables=['J', 'Q'],
+        ...                                        evidence={'A': 0, 'R': 0, 'G': 0, 'L': 1})
+        >>> print(map_res)
+        {'J': 0, 'Q': 0}
         """
         # If no variables are specified then run the MAP query for all the variables present in the model
         if variables is None:

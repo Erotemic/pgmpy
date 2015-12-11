@@ -6,11 +6,16 @@ from itertools import product
 
 import numpy as np
 
+import networkx as nx
 from pgmpy import exceptions
 from pgmpy.factors import Factor
 from pgmpy.extern import tabulate
 from pgmpy.extern import six
 from pgmpy.extern.six.moves import range, zip
+
+
+#PY_TABLEFMT = 'fancy_grid' if six.PY3 else 'psql'
+PY_TABLEFMT = 'psql'
 
 
 class TabularCPD(Factor):
@@ -153,15 +158,14 @@ class TabularCPD(Factor):
             return self.values.reshape(1, np.prod(self.cardinality))
 
     def __str__(self):
-        if six.PY2:
-            return self._cpdstr("grid")
-        else:
-            return self._cpdstr("fancy_grid")
+        return self._cpdstr()
 
-    def _str(self, phi_or_p="p", tablefmt="fancy_grid"):
+    def _str(self, phi_or_p="p", tablefmt=None):
         return super(TabularCPD, self)._str(phi_or_p, tablefmt)
 
-    def _cpdstr(self, tablefmt="fancy_grid"):
+    def _cpdstr(self, tablefmt=None):
+        if tablefmt is None:
+            tablefmt = PY_TABLEFMT
         headers_list = []
         # build column headers
         if self.evidence is not None:
@@ -368,170 +372,171 @@ class TabularCPD(Factor):
         return Factor(self.variables, self.cardinality, self.values, self.statename_dict)
 
 
-# Commenting out because not used anywhere for now and not implemented in a very good way.
-# class TreeCPD(nx.DiGraph):
-#     """
-#     Base Class for Tree CPD.
-#     """
-#     def __init__(self, data=None):
-#         """
-#         Base Class for Tree CPD.
-#
-#         Parameters
-#         ----------
-#         data: input tree
-#             Data to initialize the tree. If data=None (default) an empty
-#             tree is created. The data can be an edge list with label for
-#             each edge. Label should be the observed value of the variable.
-#
-#         Examples
-#         --------
-#         For P(A|B, C, D), to construct a tree like:
-#
-#                     B
-#              0 /        \1
-#               /          \
-#         P(A|b_0)          C
-#                    0/         \1
-#                    /           \
-#             P(A|b_1, c_0)      D
-#                           0/       \
-#                           /         \
-#             P(A|b_1,c_1,d_0)      P(A|b_1,c_1,d_1)
-#
-#         >>> from pgmpy.factors import TreeCPD, Factor
-#         >>> tree = TreeCPD([('B', Factor(['A'], [2], [0.8, 0.2]), '0'),
-#         ...                 ('B', 'C', '1'),
-#         ...                 ('C', Factor(['A'], [2], [0.1, 0.9]), '0'),
-#         ...                 ('C', 'D', '1'),
-#         ...                 ('D', Factor(['A'], [2], [0.9, 0.1]), '0'),
-#         ...                 ('D', Factor(['A'], [2], [0.4, 0.6]), '1')])
-#         """
-#         nx.DiGraph.__init__(self)
-#         # TODO: Check cycles and self loops.
-#         if data:
-#             for edge in data:
-#                 if len(edge) != 3:
-#                     raise ValueError("Each edge tuple must have 3 values (u, v, label).")
-#                 self.add_edge(edge[0], edge[1], label=edge[2])
-#
-#     def add_edge(self, u, v, label):
-#         """
-#         Add an edge between u and v.
-#
-#         The nodes u and v will be automatically added if they are
-#         not already in the graph.
-#
-#         Parameters
-#         ----------
-#         u,v: nodes
-#             Nodes can be any hashable (and not None) Python object.
-#         label: string
-#             Label should be value of the variable observed.
-#             (underscore separated if multiple variables)
-#         attr_dict: dictionary, optional (default= no attributes)
-#             Dictionary of edge attributes. Key/Value pairs will
-#             update existing data associated with the edge.
-#         attr: Keyword arguments, optional
-#             Edge data can be assigned using keyword arguments.
-#
-#         Examples
-#         --------
-#         >>> from pgmpy.factors import TreeCPD, Factor
-#         >>> tree = TreeCPD([('B', Factor(['A'], [2], [0.8, 0.2]), 0),
-#         ...                 ('B', 'C', 1)])
-#         >>> tree.add_edge('C', Factor(['A'], [2], [0.1, 0.9]), label=0)
-#         """
-#         if u != v:
-#             if u in self.nodes() and v in self.nodes() and nx.has_path(self, v, u):
-#                 # check if adding edge (u, v) forms a cycle
-#                 raise ValueError(
-#                     'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
-#             else:
-#                 super(TreeCPD, self).add_edge(u, v, label=label)
-#         else:
-#             raise ValueError('Self loops are not allowed. Edge (%s->%s) forms a self loop.' % (u, v))
-#
-#     def add_edges_from(self, ebunch):
-#         """
-#         Add all the edges in ebunch.
-#
-#         Parameters
-#         ----------
-#         ebunch : container of edges
-#             Each edge given in the container will be added to the
-#             graph. The edges must be given as as 3-tuples (u,v,label).
-#         attr_dict : dictionary, optional (default= no attributes)
-#             Dictionary of edge attributes.  Key/value pairs will
-#             update existing data associated with each edge.
-#         attr : keyword arguments, optional
-#             Edge data (or labels or objects) can be assigned using
-#             keyword arguments.
-#
-#         Examples
-#         --------
-#         >>> from pgmpy.factors import TreeCPD, Factor
-#         >>> tree = TreeCPD()
-#         >>> tree.add_edges_from([('B', 'C', 1), ('C', 'D', 1),
-#         ...                      ('D', Factor(['A'], [2], [0.6, 0.4]))])
-#         """
-#         for edge in ebunch:
-#             if len(edge) == 2:
-#                 raise ValueError("Each edge tuple must have 3 values (u, v, label).")
-#         nx.DiGraph.add_edges_from(self, [(edge[0], edge[1], {'label': edge[2]}) for edge in ebunch])
-#
-#     def to_tabular_cpd(self, parents_order=None):
-#         edge_attributes = nx.get_edge_attributes(self, 'label')
-#         edge_values = {}
-#         edge_dict = {}
-#         adjlist = {}
-#         node_list = []
-#         stack = []
-#         values = []
-#         cardinality = []
-#
-#         for edge in edge_attributes:
-#             edge_dict.setdefault(edge[0], []).append(edge_attributes[edge])
-#             if isinstance(edge[1], Factor):
-#                 variable = edge[1].scope()
-#                 variable_card = edge[1].cardinality
-#                 edge_values[(edge[0], edge[0] + edge_attributes.get(edge))] = edge[1].values.tolist()
-#             else:
-#                 edge_values[(edge[0], edge[0] + edge_attributes.get(edge))] = edge[1]
-#         #adjlist
-#         for source in self.nodes():
-#             if not isinstance(source, Factor):
-#                 adjlist[source] = [i[1] for i in edge_attributes if not isinstance(i[1], Factor) and i[0] == source]
-#                 adjlist[source] = sorted(adjlist[source], key=lambda x: (len(nx.descendants(self, x)), x))
-#
-#         root = [node for node, in_degree in self.in_degree().items() if in_degree == 0][0]
-#         stack.append(root)
-#
-#         #dfs
-#         while stack:
-#             top_node = stack[-1]
-#             node_list.append(top_node)
-#             stack = stack[:-1]
-#             for end_node in adjlist[top_node]:
-#                 stack.append(end_node)
-#
-#         for node in node_list:
-#             cardinality.append(len(edge_dict[node]))
-#
-#         for i in product(*[range(index) for index in cardinality]):
-#             edge_list = [a + str(b) for a, b in zip(node_list, i)]
-#             current_node = root
-#             for edge in edge_list:
-#                 if (current_node, edge) in edge_values.keys():
-#                     if not isinstance(edge_values[(current_node, edge)], list):
-#                         current_node = edge_values[(current_node, edge)]
-#                     else:
-#                         values.append(edge_values[(current_node, edge)])
-#                         break
-#
-#         values = np.array(values).flatten('F').reshape((len(values[0]), len(values)))
-#         return TabularCPD(variable[0], int(variable_card[0]), values, node_list[::-1], cardinality)
-#
+class TreeCPD(nx.DiGraph):
+    """
+    FIXME: not used anywhere for now and not implemented in a very good way.
+
+    Base Class for Tree CPD.
+    """
+    def __init__(self, data=None):
+        """
+        Base Class for Tree CPD.
+
+        Parameters
+        ----------
+        data: input tree
+            Data to initialize the tree. If data=None (default) an empty
+            tree is created. The data can be an edge list with label for
+            each edge. Label should be the observed value of the variable.
+
+        Examples
+        --------
+        For P(A|B, C, D), to construct a tree like:
+
+                    B
+             0 /        \1
+              /          \
+        P(A|b_0)          C
+                   0/         \1
+                   /           \
+            P(A|b_1, c_0)      D
+                          0/       \
+                          /         \
+            P(A|b_1,c_1,d_0)      P(A|b_1,c_1,d_1)
+
+        >>> from pgmpy.factors import TreeCPD, Factor
+        >>> tree = TreeCPD([('B', Factor(['A'], [2], [0.8, 0.2]), '0'),
+        ...                 ('B', 'C', '1'),
+        ...                 ('C', Factor(['A'], [2], [0.1, 0.9]), '0'),
+        ...                 ('C', 'D', '1'),
+        ...                 ('D', Factor(['A'], [2], [0.9, 0.1]), '0'),
+        ...                 ('D', Factor(['A'], [2], [0.4, 0.6]), '1')])
+        """
+        super(TreeCPD, self).__init__()
+        # TODO: Check cycles and self loops.
+        if data:
+            for edge in data:
+                if len(edge) != 3:
+                    raise ValueError("Each edge tuple must have 3 values (u, v, label).")
+                self.add_edge(edge[0], edge[1], label=edge[2])
+
+    def add_edge(self, u, v, label):
+        """
+        Add an edge between u and v.
+
+        The nodes u and v will be automatically added if they are
+        not already in the graph.
+
+        Parameters
+        ----------
+        u,v: nodes
+            Nodes can be any hashable (and not None) Python object.
+        label: string
+            Label should be value of the variable observed.
+            (underscore separated if multiple variables)
+        attr_dict: dictionary, optional (default= no attributes)
+            Dictionary of edge attributes. Key/Value pairs will
+            update existing data associated with the edge.
+        attr: Keyword arguments, optional
+            Edge data can be assigned using keyword arguments.
+
+        Examples
+        --------
+        >>> from pgmpy.factors import TreeCPD, Factor
+        >>> tree = TreeCPD([('B', Factor(['A'], [2], [0.8, 0.2]), 0),
+        ...                 ('B', 'C', 1)])
+        >>> tree.add_edge('C', Factor(['A'], [2], [0.1, 0.9]), label=0)
+        """
+        if u != v:
+            if u in self.nodes() and v in self.nodes() and nx.has_path(self, v, u):
+                # check if adding edge (u, v) forms a cycle
+                raise ValueError(
+                    'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
+            else:
+                super(TreeCPD, self).add_edge(u, v, label=label)
+        else:
+            raise ValueError('Self loops are not allowed. Edge (%s->%s) forms a self loop.' % (u, v))
+
+    def add_edges_from(self, ebunch):
+        """
+        Add all the edges in ebunch.
+
+        Parameters
+        ----------
+        ebunch : container of edges
+            Each edge given in the container will be added to the
+            graph. The edges must be given as as 3-tuples (u,v,label).
+        attr_dict : dictionary, optional (default= no attributes)
+            Dictionary of edge attributes.  Key/value pairs will
+            update existing data associated with each edge.
+        attr : keyword arguments, optional
+            Edge data (or labels or objects) can be assigned using
+            keyword arguments.
+
+        Examples
+        --------
+        >>> from pgmpy.factors import TreeCPD, Factor
+        >>> tree = TreeCPD()
+        >>> tree.add_edges_from([('B', 'C', 1), ('C', 'D', 1),
+        ...                      ('D', Factor(['A'], [2], [0.6, 0.4]))])
+        """
+        for edge in ebunch:
+            if len(edge) == 2:
+                raise ValueError("Each edge tuple must have 3 values (u, v, label).")
+        nx.DiGraph.add_edges_from(self, [(edge[0], edge[1], {'label': edge[2]}) for edge in ebunch])
+
+    def to_tabular_cpd(self, parents_order=None):
+        edge_attributes = nx.get_edge_attributes(self, 'label')
+        edge_values = {}
+        edge_dict = {}
+        adjlist = {}
+        node_list = []
+        stack = []
+        values = []
+        cardinality = []
+
+        for edge in edge_attributes:
+            edge_dict.setdefault(edge[0], []).append(edge_attributes[edge])
+            if isinstance(edge[1], Factor):
+                variable = edge[1].scope()
+                variable_card = edge[1].cardinality
+                edge_values[(edge[0], edge[0] + edge_attributes.get(edge))] = edge[1].values.tolist()
+            else:
+                edge_values[(edge[0], edge[0] + edge_attributes.get(edge))] = edge[1]
+        #adjlist
+        for source in self.nodes():
+            if not isinstance(source, Factor):
+                adjlist[source] = [i[1] for i in edge_attributes if not isinstance(i[1], Factor) and i[0] == source]
+                adjlist[source] = sorted(adjlist[source], key=lambda x: (len(nx.descendants(self, x)), x))
+
+        root = [node for node, in_degree in self.in_degree().items() if in_degree == 0][0]
+        stack.append(root)
+
+        #dfs
+        while stack:
+            top_node = stack[-1]
+            node_list.append(top_node)
+            stack = stack[:-1]
+            for end_node in adjlist[top_node]:
+                stack.append(end_node)
+
+        for node in node_list:
+            cardinality.append(len(edge_dict[node]))
+
+        for i in product(*[range(index) for index in cardinality]):
+            edge_list = [a + str(b) for a, b in zip(node_list, i)]
+            current_node = root
+            for edge in edge_list:
+                if (current_node, edge) in edge_values.keys():
+                    if not isinstance(edge_values[(current_node, edge)], list):
+                        current_node = edge_values[(current_node, edge)]
+                    else:
+                        values.append(edge_values[(current_node, edge)])
+                        break
+
+        values = np.array(values).flatten('F').reshape((len(values[0]), len(values)))
+        return TabularCPD(variable[0], int(variable_card[0]), values, node_list[::-1], cardinality)
+
 #     def to_rule_cpd(self):
 #         """
 #         Returns a RuleCPD object which represents the TreeCPD

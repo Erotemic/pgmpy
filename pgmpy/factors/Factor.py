@@ -13,6 +13,9 @@ from pgmpy.extern.six.moves import map, range, reduce, zip
 
 State = namedtuple('State', ['var', 'state'])
 
+#PY_TABLEFMT = 'fancy_grid' if six.PY3 else 'psql'
+PY_TABLEFMT = 'psql'
+
 
 class Factor(object):
     """
@@ -134,6 +137,9 @@ class Factor(object):
 
     @property
     def statenames(self):
+        """
+        property alias
+        """
         return self._statenames()
 
     def _internal_varindex(self, variable, statename):
@@ -144,10 +150,49 @@ class Factor(object):
         var_idx = self.statename_dict[variable].index(statename)
         return var_idx
 
-    def _statenames(self, variables=None, cardinality=None):
+    def __getitem__(self, index_or_statename):
+        """
+        Returns the value from the first variable of this factor with the given
+        statename.
+        """
+        if isinstance(index_or_statename, int):
+            var_idx = index_or_statename
+        else:
+            var_idx = self._internal_varindex(self.variables[0], index_or_statename)
+        return self.values[var_idx]
+
+    def _row_labels(self, asindex=False):
+        """
+        Returns a list of statments corresponding to each value (in values.ravel())
+        """
+        row_labels = list(product(*self._statenames(asindex=asindex)))
+        return row_labels
+
+    def _statenames(self, variables=None, cardinality=None, asindex=False):
+        """
+        Returns the list of statenames associated with each row in this factor
+
+        Parameters
+        ----------
+        variables: defaults to all variables
+        cardinality: needs to be specified only if statename_dict has not been assigned
+
+        Examples
+        --------
+        >>> from pgmpy.factors import Factor
+        >>> statename_dict = {'grade': ['A', 'F'],
+        >>>                   'intel': ['smart', 'dumb'],}
+        >>> phi = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
+        >>> phi._statenames()
+        [['A', 'F'], ['smart', 'dumb']]
+        """
         if variables is None and cardinality is None:
             variables = self.variables
             cardinality = self.cardinality
+        if asindex:
+            return [list(range(card))
+                    for var, card in zip(variables, cardinality)]
+
         if self.statename_dict is None:
             # Old approach
             return [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
@@ -216,7 +261,7 @@ class Factor(object):
 
     def assignment(self, index):
         """
-        Returns a list of assignments for the corresponding index.
+        Returns a list of variable assignments for the corresponding row index.
 
         Parameters
         ----------
@@ -250,6 +295,37 @@ class Factor(object):
         assignments = assignments[:, ::-1]
 
         return [[(key, val) for key, val in zip(self.variables, values)] for values in assignments]
+
+    def assignment_statenames(self, index):
+        """
+        Returns a list of variable statename assignments for the corresponding row index.
+
+        Parameters
+        ----------
+        index: list, array-like
+            List of indices whose assignment is to be computed
+
+        Returns
+        -------
+        list: Returns a list of full statename assignments of all the variables of the factor.
+
+        Examples
+        --------
+        >>> from pgmpy.factors import Factor
+        >>> statename_dict = {'grade': ['A', 'F'],
+        >>>                   'intel': ['smart', 'dumb'],}
+        >>> phi = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
+        >>> phi.assignment([1, 2])
+        [[('grade', 0), ('intel', 1)], [('grade', 1), ('intel', 0)]]
+        """
+        assert self.statename_dict is not None, 'must have assigned statements'
+        idx_assign_lists = self.assignment(index)
+        state_assign_lists = [
+            [(key, self.statename_dict[key][val])
+             for key, val in idx_assigns]
+            for idx_assigns in idx_assign_lists
+        ]
+        return state_assign_lists
 
     def identity_factor(self):
         """
@@ -454,9 +530,26 @@ class Factor(object):
         array([2])
         >>> phi.values
         array([0., 1.])
+
+        >>> # example with string statenames
+        >>> statename_dict = {'grade': ['A', 'F'],
+        >>>                   'intel': ['smart', 'dumb'],}
+        >>> phi2 = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
+        >>> values = [('grade', 'A')]
+        >>> phi3 = phi2.reduce(values, inplace=False)
+        >>> phi3.values
+        array([ 0.9,  0.1])
         """
         if isinstance(values, six.string_types):
             raise TypeError("values: Expected type list or array-like, got type str")
+
+        if isinstance(values, dict):
+            # allow for input as a dictionary
+            values = list(values.items())
+
+        if all(isinstance(state, six.string_types) for var, state in values):
+            # rectify semantic statenames
+            values = [(var, self._internal_varindex(var, state)) for var, state in values]
 
         if (any(isinstance(value, six.string_types) for value in values) or
                 not all(isinstance(state, (int, np.integer)) for var, state in values)):
@@ -466,6 +559,7 @@ class Factor(object):
 
         var_index_to_del = []
         slice_ = [slice(None)] * len(self.variables)
+
         for var, state in values:
             var_index = phi.variables.index(var)
             slice_[var_index] = state
@@ -771,12 +865,9 @@ class Factor(object):
                       statename_dict)
 
     def __str__(self):
-        if six.PY2:
-            return self._str(phi_or_p='phi', tablefmt="psql")
-        else:
-            return self._str(phi_or_p='phi')
+        return self._str(phi_or_p='phi')
 
-    def _str(self, phi_or_p="phi", tablefmt="fancy_grid", sort=False, maxrows=None):
+    def _str(self, phi_or_p="phi", tablefmt=None, sort=False, maxrows=None):
         """
         Generate the string from `__str__` method.
 
@@ -790,6 +881,8 @@ class Factor(object):
             if 1 or True value are sorted in ascending order
             if -1 values are sorted in descending order
         """
+        if tablefmt is None:
+            tablefmt = PY_TABLEFMT
         string_header = list(self.scope())
         string_header.append('{phi_or_p}({variables})'.format(
             phi_or_p=phi_or_p, variables=','.join(string_header)))

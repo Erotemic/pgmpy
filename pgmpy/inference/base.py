@@ -91,6 +91,12 @@ class Inference(object):
             self.one_and_half_model = BayesianModel(model.get_inter_edges() + model.get_intra_edges(1))
             self.one_and_half_model.add_cpds(*(model.get_cpds(time_slice=1) + cpd_inter))
 
+        # Register statenames of factors
+        self.statename_dict = {
+            varname: factors[0].statename_dict[varname]
+            for varname, factors in self.factors.items()
+        }
+
     def _ensure_internal_evidence(self, external_evidence, model):
         """
         Ensures that the evidence dictionary uses internal indicies.
@@ -109,6 +115,7 @@ class Inference(object):
         evidence = {}
         for key, val in external_evidence.items():
             if isinstance(val, six.string_types):
+                #evidence[key] = self.statename_dict[key].index(val)
                 evidence[key] = model.var2_cpd[key]._internal_varindex(key, val)
             else:
                 evidence[key] = val

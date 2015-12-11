@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from pgmpy.base import DirectedGraph
-from pgmpy.factors import TabularCPD
+from pgmpy.factors import TabularCPD, factor_product
 from pgmpy.independencies import Independencies
 from pgmpy.extern import six
 from pgmpy.extern.six.moves import range
@@ -628,3 +628,11 @@ class BayesianModel(DirectedGraph):
 
     def is_imap(self, independence):
         pass
+
+    def joint_distribution(self):
+        """
+        The joint probability distribution of a Bayesian network is the product
+        of its individual density functions in the graph, conditional on their
+        parent variables. Ie the product of the cpds.
+        """
+        return factor_product(*self.cpds)

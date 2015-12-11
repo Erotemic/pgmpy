@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import division
 import itertools
 from collections import defaultdict
 
@@ -471,6 +472,7 @@ class MarkovModel(UndirectedGraph):
 
         # Find maximal cliques in the chordal graph
         cliques = list(map(tuple, nx.find_cliques(triangulated_graph)))
+        #print('cliques = %r' % (cliques,))
 
         # If there is only 1 clique, then the junction tree formed is just a
         # clique tree with that single clique as the node
@@ -502,14 +504,20 @@ class MarkovModel(UndirectedGraph):
         # If false, then it is not used to create any clique potential
         is_used = {factor: False for factor in self.factors}
 
-        # sort nodes by descending degree
-        # (This seems to stop a bug where len(clique_factors) == 0)
-        node_to_degree = clique_trees.degree()
-        sorted_nodes = [x[1] for x in sorted(
-            [(deg, node) for node, deg in node_to_degree.items()]
-        )][::-1]
+        HACK = True
+        if HACK:
+            # sort nodes by descending degree
+            # (This seems to stop a bug where len(clique_factors) == 0)
+            node_to_degree = clique_trees.degree()
+            sorted_nodes = [x[1] for x in sorted(
+                [(deg, node) for node, deg in node_to_degree.items()]
+            )][::-1]
+            node_iter = sorted_nodes
+        else:
+            node_iter = list(clique_trees.nodes())
+        #print('node_iter = %r' % (node_iter,))
 
-        for node in sorted_nodes:
+        for node in node_iter:
             clique_factors = []
             for factor in self.factors:
                 # If the factor is not used in creating any clique potential as

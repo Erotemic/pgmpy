@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import division
 from warnings import warn
 
 import numpy as np

@@ -243,7 +243,7 @@ class JointProbabilityDistribution(Factor):
         for variable_index in range(len(order)):
             u = order[:variable_index]
             for subset in combinations(u):
-                if self.check_independence(order[variable_index], set(u)-set(subset), subset):
+                if self.check_independence(order[variable_index], set(u) - set(subset), subset):
                     G.add_edges_from([(variable, order[variable_index]) for variable in subset])
         return G
 
