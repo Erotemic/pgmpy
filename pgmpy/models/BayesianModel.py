@@ -648,4 +648,6 @@ class BayesianModel(DirectedGraph):
         of its individual density functions in the graph, conditional on their
         parent variables. Ie the product of the cpds.
         """
-        return factor_product(*self.cpds)
+        joint = factor_product(*self.cpds)
+        joint.normalize()
+        return joint

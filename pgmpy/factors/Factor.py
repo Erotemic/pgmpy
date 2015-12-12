@@ -557,17 +557,21 @@ class Factor(object):
         phi = self if inplace else self.copy()
 
         var_index_to_del = []
-        slice_ = [slice(None)] * len(self.variables)
+        slice_ = [slice(None)] * len(phi.variables)
 
         for var, state in values:
             var_index = phi.variables.index(var)
             slice_[var_index] = state
             var_index_to_del.append(var_index)
 
-        var_index_to_keep = list(set(range(len(phi.variables))) - set(var_index_to_del))
-        phi.variables = [phi.variables[index] for index in var_index_to_keep]
-        phi.cardinality = phi.cardinality[var_index_to_keep]
-        phi.values = phi.values[tuple(slice_)]
+        var_index_to_keep = sorted(list(set(range(len(phi.variables))) - set(var_index_to_del)))
+        new_values = phi.values[tuple(slice_)]
+        new_vars = [phi.variables[index] for index in var_index_to_keep]
+        new_card = phi.cardinality[var_index_to_keep]
+
+        phi.variables = new_vars
+        phi.cardinality = new_card
+        phi.values = new_values
 
         if not inplace:
             return phi
@@ -906,16 +910,33 @@ class Factor(object):
 
     def map_bruteforce(self, query_variables, evidence={}):
         """ if this is a joint distribution compute MAP """
-        joint = self.reduce(evidence, inplace=False)
-        # Marginalize over non-query, non-evidence
-        irrelevant_vars = set(joint.variables) - (set(evidence.keys()) | set(query_variables))
-        joint.marginalize(irrelevant_vars)
-        joint.normalize()
+        joint = self.evidence_based_reduction(
+            query_variables, evidence, inplace=False)
         new_rows = joint._row_labels()
         new_vals = joint.values.ravel()
         map_vals = new_rows[new_vals.argmax()]
         map_assign = dict(zip(joint.variables, map_vals))
         return map_assign
+
+    def evidence_based_reduction(self, query_variables=None,
+                                 evidence={}, inplace=False):
+        """
+        conditions this distribution on evidence
+        """
+        joint = self if inplace else self.copy()
+        if query_variables is None:
+            query_variables = self.variables
+        self.reduce(evidence)
+        joint.normalize()
+        # Marginalize over non-query, non-evidence
+        irrelevant_vars = (
+            set(joint.variables) -
+            (set(evidence.keys()) | set(query_variables))
+        )
+        joint.marginalize(irrelevant_vars)
+        joint.normalize()
+        if not inplace:
+            return joint
 
     def __repr__(self):
         var_card = ", ".join([
