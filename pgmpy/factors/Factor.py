@@ -567,13 +567,12 @@ class Factor(object):
             slice_[var_index] = state
             var_index_to_del.add(var_index)
 
-        all_var_index = set(range(len(phi.variables)))
-        # Set difference is not gaurenteed to return in order
-        var_index_to_keep = sorted(list(all_var_index - var_index_to_del))
-        # What happens if var_index_to_keep is not in order
-        phi.values = phi.values[tuple(slice_)]
+        var_index_to_keep = list(set(range(len(phi.variables))) - set(var_index_to_del))
+        # set difference is not gaurenteed to maintain ordering
+        var_index_to_keep = sorted(var_index_to_keep)
         phi.variables = [phi.variables[index] for index in var_index_to_keep]
         phi.cardinality = phi.cardinality[var_index_to_keep]
+        phi.values = phi.values[tuple(slice_)]
 
         if not inplace:
             return phi
