@@ -12,7 +12,7 @@ from pgmpy.base import DirectedGraph
 from pgmpy.factors import TabularCPD
 from pgmpy.independencies import Independencies
 from pgmpy.extern import six
-from pgmpy.extern.six.moves import range
+# from pgmpy.extern.six.moves import range
 
 
 class BayesianModel(DirectedGraph):
@@ -86,6 +86,7 @@ class BayesianModel(DirectedGraph):
         if ebunch:
             self.add_edges_from(ebunch)
         self.cpds = []
+        self._var_to_cpd_index = {}
         self.cardinalities = defaultdict(int)
 
     def add_edge(self, u, v, **kwargs):
@@ -114,7 +115,7 @@ class BayesianModel(DirectedGraph):
                  'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
         else:
             super(BayesianModel, self).add_edge(u, v, **kwargs)
-        
+
     def add_cpds(self, *cpds):
         """
         Add CPD (Conditional Probability Distribution) to the Bayesian Model.
@@ -155,13 +156,13 @@ class BayesianModel(DirectedGraph):
                     set(self.nodes())):
                 raise ValueError('CPD defined on variable not in the model', cpd)
 
-            for prev_cpd_index in range(len(self.cpds)):
-                if self.cpds[prev_cpd_index].variable == cpd.variable:
-                    logging.warning("Replacing existing CPD for {var}".format(var=cpd.variable))
-                    self.cpds[prev_cpd_index] = cpd
-                    break
+            if cpd.variable in self._var_to_cpd_index:
+                prev_cpd_index = self._var_to_cpd_index[cpd.variable]
+                logging.warning("Replacing existing CPD for {var}".format(var=cpd.variable))
+                self.cpds[prev_cpd_index] = cpd
             else:
                 self.cpds.append(cpd)
+                self._var_to_cpd_index[cpd.variable] = len(self.cpds) - 1
 
     def get_cpds(self, node=None):
         """
@@ -187,11 +188,32 @@ class BayesianModel(DirectedGraph):
         if node:
             if node not in self.nodes():
                 raise ValueError('Node not present in the Directed Graph')
-            for cpd in self.cpds:
-                if cpd.variable == node:
-                    return cpd
+            if node in self._var_to_cpd_index:
+                index = self._var_to_cpd_index[node]
+                cpd = self.cpds[index]
+                return cpd
+            else:
+                logging.warning("No existing CPD for {node}".format(node=node))
+                return None
         else:
             return self.cpds
+
+    def var_to_cpd(self, variable):
+        """
+        Returns the CPD associated with the variable ``variable``
+
+        Parameters
+        ----------
+        variable : str
+            The variable name of the desired CPD
+
+        Returns
+        -------
+        cpd: TabularCPD
+        """
+        index = self._var_to_cpd_index[variable]
+        cpd = self.cpds[index]
+        return cpd
 
     def remove_cpds(self, *cpds):
         """
@@ -214,20 +236,27 @@ class BayesianModel(DirectedGraph):
         >>> student.add_cpds(cpd)
         >>> student.remove_cpds(cpd)
         """
-        # Remove cpds from model and networkx structure
-        cpds = [
-            self.get_cpds(cpd) if isinstance(cpd, six.string_types) else cpd
-            for cpd in cpds
-        ]
+        cpds = [(self.get_cpds(cpd) if isinstance(cpd, six.string_types)
+                 else cpd) for cpd in cpds]
         for cpd in cpds:
-            if cpd.variable in self.node:
-                del self.node[cpd.variable]
-            if cpd.variable in self.edge:
-                del self.edge[cpd.variable]
-            for edge in self.edge.values():
-                if cpd.variable in edge:
-                    del edge[cpd.variable]
             self.cpds.remove(cpd)
+        # rebuild cpd variable index
+        self._var_to_cpd_index = {cpd.variable: index
+                                  for index, cpd in enumerate(self.cpds)}
+
+    def delete_variables(self, variables, inplace=False):
+        """
+        Changes the model definition by removing variables
+        """
+        # Remove cpds from model and networkx structure
+        for variable in variables:
+            if variable in self.node:
+                del self.node[variable]
+            if variable in self.edge:
+                del self.edge[variable]
+            for edge in self.edge.values():
+                if variable in edge:
+                    del edge[variable]
         empty_edges = [e1 for e1, e2 in self.edge.items() if len(e2) == 0]
         for e1 in empty_edges:
             del self.edge[e1]
