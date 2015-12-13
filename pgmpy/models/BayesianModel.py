@@ -283,22 +283,22 @@ class BayesianModel(DirectedGraph):
                     raise ValueError("CPD associated with %s doesn't have "
                                      "proper parents associated with it." % node)
                 marginal_values = cpd.to_factor().marginalize([node], inplace=False).values.flatten('C')
-                atol = 0.01
-                diff = 1.0 - marginal_values
-                is_close = diff < atol
-                #if not np.allclose(marginal_values,
-                #                   np.ones(np.product(cpd.evidence_card)),
-                #                   atol=0.01):
-                if not np.all(is_close):
-                    if True:
-                        error_idxs = np.where(~is_close)[0]
-                        error_vals = marginal_values[error_idxs]
-                        error_info = '\n'.join([
-                            'marginal_values.shape = %r ' % (marginal_values.shape,),
-                            'error_vals = %r ' % (error_vals,),
-                            'error_idxs = %r ' % (error_idxs,),
-                        ])
-                        print('error_info = %s' % (error_info,))
+                # atol = 0.01
+                # diff = 1.0 - marginal_values
+                # is_close = diff < atol
+                if not np.allclose(marginal_values,
+                                   np.ones(np.product(cpd.evidence_card)),
+                                   atol=0.01):
+                    # if not np.all(is_close):
+                    #     if True:
+                    #         error_idxs = np.where(~is_close)[0]
+                    #         error_vals = marginal_values[error_idxs]
+                    #         error_info = '\n'.join([
+                    #             'marginal_values.shape = %r ' % (marginal_values.shape,),
+                    #             'error_vals = %r ' % (error_vals,),
+                    #             'error_idxs = %r ' % (error_idxs,),
+                    #         ])
+                    #         print('error_info = %s' % (error_info,))
                     msg = ('Sum of probabilites of states for node %s'
                                      ' is not equal to 1.' % node)
                     raise ValueError(msg)

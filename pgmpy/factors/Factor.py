@@ -549,7 +549,9 @@ class Factor(object):
             # allow for input as a dictionary
             values = list(values.items())
 
-        if all(isinstance(state, six.string_types) for var, state in values):
+        if (all(isinstance(item, (list, tuple)) and len(item) == 2 for item in values) and
+             all(isinstance(state, six.string_types) for var, state in values) and
+             self.statename_dict is not None):
             # rectify semantic statenames
             values = [(var, self._internal_varindex(var, state)) for var, state in values]
 
