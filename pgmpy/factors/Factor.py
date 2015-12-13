@@ -180,10 +180,10 @@ class Factor(object):
         --------
         >>> from pgmpy.factors import Factor
         >>> statename_dict = {'grade': ['A', 'F'],
-        >>>                   'intel': ['smart', 'dumb'],}
+        >>>                   'intel': ['high', 'low'],}
         >>> phi = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
         >>> phi._statenames()
-        [['A', 'F'], ['smart', 'dumb']]
+        [['A', 'F'], ['high', 'low']]
         """
         if variables is None and cardinality is None:
             variables = self.variables
@@ -312,7 +312,7 @@ class Factor(object):
         --------
         >>> from pgmpy.factors import Factor
         >>> statename_dict = {'grade': ['A', 'F'],
-        >>>                   'intel': ['smart', 'dumb'],}
+        >>>                   'intel': ['high', 'low'],}
         >>> phi = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
         >>> phi.assignment([1, 2])
         [[('grade', 0), ('intel', 1)], [('grade', 1), ('intel', 0)]]
@@ -398,6 +398,7 @@ class Factor(object):
         var_indexes = [phi.variables.index(var) for var in variables]
 
         index_to_keep = list(set(range(len(self.variables))) - set(var_indexes))
+        index_to_keep = sorted(index_to_keep)
         phi.variables = [phi.variables[index] for index in index_to_keep]
         phi.cardinality = phi.cardinality[index_to_keep]
 
@@ -451,6 +452,7 @@ class Factor(object):
         var_indexes = [phi.variables.index(var) for var in variables]
 
         index_to_keep = list(set(range(len(self.variables))) - set(var_indexes))
+        index_to_keep = sorted(index_to_keep)
         phi.variables = [phi.variables[index] for index in index_to_keep]
         phi.cardinality = phi.cardinality[index_to_keep]
 
@@ -487,11 +489,9 @@ class Factor(object):
         array([[[ 0.        ,  0.01515152],
                 [ 0.03030303,  0.04545455],
                 [ 0.06060606,  0.07575758]],
-
                [[ 0.09090909,  0.10606061],
                 [ 0.12121212,  0.13636364],
                 [ 0.15151515,  0.16666667]]])
-
         """
         phi = self if inplace else self.copy()
 
@@ -530,13 +530,16 @@ class Factor(object):
         >>> phi.values
         array([0., 1.])
 
-        >>> # example with string statenames
-        >>> statename_dict = {'grade': ['A', 'F'],
-        >>>                   'intel': ['smart', 'dumb'],}
-        >>> phi2 = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
-        >>> values = [('grade', 'A')]
-        >>> phi3 = phi2.reduce(values, inplace=False)
-        >>> phi3.values
+        >>> from pgmpy.factors import Factor
+        >>> # example shows that sorting var to keep is important
+        >>> card = [3, 3, 3, 2, 2, 2, 2, 2, 2]
+        >>> variables = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']
+        >>> values = np.arange(np.prod(card), dtype=np.float)
+        >>> phi2 = Factor(variables, card, values)
+        >>> values = [('A', 0), ('D', 0), ('F', 0), ('H', 1)]
+        >>> inplace = False
+        >>> phi3 = phi2.reduce(values, inplace=inplace)
+        >>> assert np.all(phi3.values.shape == phi3.cardinality)
         array([ 0.9,  0.1])
         """
         if isinstance(values, six.string_types):
@@ -556,22 +559,21 @@ class Factor(object):
 
         phi = self if inplace else self.copy()
 
-        var_index_to_del = []
+        var_index_to_del = set([])
         slice_ = [slice(None)] * len(phi.variables)
 
         for var, state in values:
             var_index = phi.variables.index(var)
             slice_[var_index] = state
-            var_index_to_del.append(var_index)
+            var_index_to_del.add(var_index)
 
-        var_index_to_keep = sorted(list(set(range(len(phi.variables))) - set(var_index_to_del)))
-        new_values = phi.values[tuple(slice_)]
-        new_vars = [phi.variables[index] for index in var_index_to_keep]
-        new_card = phi.cardinality[var_index_to_keep]
-
-        phi.variables = new_vars
-        phi.cardinality = new_card
-        phi.values = new_values
+        all_var_index = set(range(len(phi.variables)))
+        # Set difference is not gaurenteed to return in order
+        var_index_to_keep = sorted(list(all_var_index - var_index_to_del))
+        # What happens if var_index_to_keep is not in order
+        phi.values = phi.values[tuple(slice_)]
+        phi.variables = [phi.variables[index] for index in var_index_to_keep]
+        phi.cardinality = phi.cardinality[var_index_to_keep]
 
         if not inplace:
             return phi
@@ -908,35 +910,33 @@ class Factor(object):
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
 
-    def map_bruteforce(self, query_variables, evidence={}):
-        """ if this is a joint distribution compute MAP """
-        joint = self.evidence_based_reduction(
-            query_variables, evidence, inplace=False)
-        new_rows = joint._row_labels()
-        new_vals = joint.values.ravel()
-        map_vals = new_rows[new_vals.argmax()]
-        map_assign = dict(zip(joint.variables, map_vals))
-        return map_assign
-
     def evidence_based_reduction(self, query_variables=None,
                                  evidence={}, inplace=False):
         """
         conditions this distribution on evidence
+
+        Example:
+            >>> reduced_joint = joint.evidence_based_reduction(
+            >>>     query_variables, evidence, inplace=False)
+            >>> new_rows = reduced_joint._row_labels()
+            >>> new_vals = reduced_joint.values.ravel()
+            >>> map_vals = new_rows[new_vals.argmax()]
+            >>> map_assign = dict(zip(reduced_joint.variables, map_vals))
         """
-        joint = self if inplace else self.copy()
+        reduced_joint = self if inplace else self.copy()
         if query_variables is None:
-            query_variables = self.variables
-        self.reduce(evidence)
-        joint.normalize()
+            query_variables = reduced_joint.variables
+        reduced_joint.reduce(evidence)
+        reduced_joint.normalize()
         # Marginalize over non-query, non-evidence
         irrelevant_vars = (
-            set(joint.variables) -
+            set(reduced_joint.variables) -
             (set(evidence.keys()) | set(query_variables))
         )
-        joint.marginalize(irrelevant_vars)
-        joint.normalize()
+        reduced_joint.marginalize(irrelevant_vars)
+        reduced_joint.normalize()
         if not inplace:
-            return joint
+            return reduced_joint
 
     def __repr__(self):
         var_card = ", ".join([
