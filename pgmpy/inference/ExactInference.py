@@ -29,6 +29,22 @@ class VariableElimination(Inference):
             list of variables representing the order in which they
             are to be eliminated. If None order is computed automatically.
         """
+        final_phi = self._variable_elimination_joint(
+            variables, operation, evidence=evidence,
+            elimination_order=elimination_order)
+
+        query_var_factor = {}
+        for query_var in variables:
+            other_variables = list(set(variables) - set([query_var]))
+            qvar_phi = final_phi.marginalize(other_variables, inplace=False)
+            qvar_phi.normalize()
+            query_var_factor[query_var] = qvar_phi
+        return query_var_factor
+
+    def _variable_elimination_joint(self, variables, operation, evidence=None, elimination_order=None):
+        """
+        Return the joint distribution after eliminating variables
+        """
         #evidence = self._ensure_internal_evidence(evidence)
         # Dealing with the case when variables is not provided.
         if not variables:
@@ -81,13 +97,15 @@ class VariableElimination(Inference):
                 if not set(factor.variables).intersection(eliminated_variables):
                     final_distribution.add(factor)
 
-        query_var_factor = {}
-        for query_var in variables:
-            phi = factor_product(*final_distribution)
-            query_var_factor[query_var] = phi.marginalize(list(set(variables) -
-                                                               set([query_var])),
-                                                          inplace=False).normalize(inplace=False)
-        return query_var_factor
+        final_phi = factor_product(*final_distribution)
+        return final_phi
+
+    def compute_conditional_joint(self, variables=None, operation='maximize', evidence=None, elimination_order=None):
+        #evidence = self._ensure_internal_evidence(evidence)
+        final_phi = self._variable_elimination_joint(variables, operation,
+                                                     evidence=evidence,
+                                                     elimination_order=elimination_order)
+        return final_phi
 
     def query(self, variables, evidence=None, elimination_order=None):
         """
@@ -161,9 +179,60 @@ class VariableElimination(Inference):
             final_distribution = final_distribution.values()
         return np.max(factor_product(*final_distribution).values)
 
+    def map_query_multivar(self, variables=None, evidence=None, elimination_order=None):
+        """
+        Computes the MAP Query over the all variables (jointly) given the evidence.
+
+        Parameters
+        ----------
+        variables: list
+            list of variables over which we want to compute the max-marginal.
+        evidence: dict
+            a dict key, value pair as {var: state_of_var_observed}
+            None if no evidence
+        elimination_order: list
+            order of variable eliminations (if nothing is provided) order is
+            computed automatically
+
+        Examples
+        --------
+        >>> from pgmpy.inference import VariableElimination
+        >>> from pgmpy.models import BayesianModel
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
+        ...                       columns=['A', 'B', 'C', 'D', 'E'])
+        >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
+        >>> model.fit(values)
+        >>> inference = VariableElimination(model)
+        >>> phi_query = inference.map_query(['A', 'B'])
+        {'A': 1, 'B': 0}
+        """
+        #evidence = self._ensure_internal_evidence(evidence)
+        elimination_variables = set(self.variables) - set(evidence.keys()) if evidence else set()
+        final_phi = self._variable_elimination_joint(elimination_variables, 'maximize',
+                                                     evidence=evidence,
+                                                     elimination_order=elimination_order)
+
+        argmax = np.argmax(final_phi.values)
+        assignment = final_phi.assignment([argmax])[0]
+
+        map_query_results = {}
+        for var_assignment in assignment:
+            var, value = var_assignment
+            map_query_results[var] = value
+
+        if not variables:
+            return map_query_results
+        else:
+            return_dict = {}
+            for var in variables:
+                return_dict[var] = map_query_results[var]
+            return return_dict
+
     def map_query(self, variables=None, evidence=None, elimination_order=None):
         """
-        Computes the MAP Query over the variables given the evidence.
+        Computes the MAP Query over each variable (independantly) given the evidence.
 
         Parameters
         ----------
@@ -517,7 +586,7 @@ class BeliefPropagation(Inference):
         """
         self._calibrate_junction_tree(operation='maximize')
 
-    def _query(self, variables, operation, evidence=None):
+    def _query(self, variables, operation, evidence=None, multivar=False, return_joint=False):
         """
         This is a generalized query method that can be used for both query and map query.
 
@@ -608,10 +677,20 @@ class BeliefPropagation(Inference):
 
         # Sum product variable elimination on the subtree
         variable_elimination = VariableElimination(subtree)
-        if operation == 'marginalize':
-            return variable_elimination.query(variables=variables, evidence=evidence)
-        elif operation == 'maximize':
-            return variable_elimination.map_query(variables=variables, evidence=evidence)
+
+        if return_joint:
+            return variable_elimination.compute_conditional_joint(variables, operation, evidence)
+
+        if multivar:
+            if operation == 'maximize':
+                return variable_elimination.map_query_multivar(variables=variables, evidence=evidence)
+            else:
+                raise NotImplementedError(operation)
+        else:
+            if operation == 'marginalize':
+                return variable_elimination.query(variables=variables, evidence=evidence)
+            elif operation == 'maximize':
+                return variable_elimination.map_query(variables=variables, evidence=evidence)
 
     def query(self, variables, evidence=None):
         """
@@ -712,5 +791,10 @@ class BeliefPropagation(Inference):
         # If no variables are specified then run the MAP query for all the variables present in the model
         if variables is None:
             variables = set(self.variables)
-
         return self._query(variables=variables, operation='maximize', evidence=evidence)
+
+    def map_query_multivar(self, variables=None, evidence=None):
+        return self._query(variables=variables, operation='maximize', evidence=evidence, multivar=True)
+
+    def compute_conditional_joint(self, variables=None, operation='maximize', evidence=None):
+        return self._query(variables=variables, operation=operation, evidence=evidence, multivar=True, return_joint=True)
