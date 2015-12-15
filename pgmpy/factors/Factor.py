@@ -118,9 +118,9 @@ class Factor(object):
             if self.cardinality is None:
                 self.cardinality = _implicitcard
 
-            if self.cardinality is not None:
-                if not np.all(_implicitcard == self.cardinality):
-                    raise ValueError('cardinality does not agree with state names')
+            #if self.cardinality is not None:
+            #    if not np.all(_implicitcard == self.cardinality):
+            #        raise ValueError('cardinality does not agree with state names')
 
         if self.cardinality is None:
             assert self.cardinality is not None, 'cannot infer cardinality'
@@ -133,13 +133,6 @@ class Factor(object):
 
         if self.values.size != np.product(self.cardinality):
             raise ValueError("Values array must be of size: {size}".format(size=np.product(self.cardinality)))
-
-    @property
-    def statenames(self):
-        """
-        property alias
-        """
-        return self._statenames()
 
     def _internal_varindex(self, variable, statename):
         """
@@ -167,6 +160,13 @@ class Factor(object):
         row_labels = list(product(*self._statenames(asindex=asindex)))
         return row_labels
 
+    @property
+    def statenames(self):
+        """
+        property alias
+        """
+        return self._statenames()
+
     def _statenames(self, variables=None, cardinality=None, asindex=False):
         """
         Returns the list of statenames associated with each row in this factor
@@ -179,9 +179,9 @@ class Factor(object):
         Examples
         --------
         >>> from pgmpy.factors import Factor
-        >>> statename_dict = {'grade': ['A', 'F'],
+        >>> statename_dict = {'grade': ['A', 'B', 'F'],
         >>>                   'intel': ['high', 'low'],}
-        >>> phi = Factor(['grade', 'intel'], None, [.9, .1, .1, .9], statename_dict)
+        >>> phi = Factor(['grade', 'intel'], [2, 2], [.9, .1, .1, .9], statename_dict)
         >>> phi._statenames()
         [['A', 'F'], ['high', 'low']]
         """
@@ -199,11 +199,14 @@ class Factor(object):
         elif self.cardinality is None:
             # New approach
             return [self.statename_dict[var] for var in variables]
+            #return [self.statename_dict[var][:card]
+            #for var, card in zip(variables, cardinality)]
         else:
             # Hybrid aproach
             statename_lists = [
                 (
-                    self.statename_dict[var]
+                    #self.statename_dict[var][:card]
+                    self.statename_dict[var][:card]
                     if self.statename_dict.get(var, None) is not None else
                     ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
                 )

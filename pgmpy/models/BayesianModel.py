@@ -680,3 +680,25 @@ class BayesianModel(DirectedGraph):
         joint = factor_product(*self.cpds)
         joint.normalize()
         return joint
+
+    def _ensure_internal_evidence(self, external_evidence):
+        """
+        Ensures that the evidence dictionary uses internal indicies.
+
+        If external string indicies are given, then this function maps them to the
+        appropriate internal integral index.
+
+        TODO: Use this function to rectify external state names with internal
+        ones.
+        """
+        if not hasattr(self, 'var2_cpd'):
+            raise NotImplementedError('implement var2_cpd')
+        if external_evidence is None:
+            return external_evidence
+        evidence = {}
+        for key, val in external_evidence.items():
+            if isinstance(val, six.string_types):
+                evidence[key] = self.var2_cpd[key]._internal_varindex(key, val)
+            else:
+                evidence[key] = val
+        return evidence
