@@ -100,7 +100,7 @@ class Factor(object):
         self.values = None
         self.variables = None
 
-        values = np.array(values)
+        values = np.array(np.ascontiguousarray(values))
 
         if values.dtype != int and values.dtype != float:
             raise TypeError("Values: Expected type int or type float, got ", values.dtype)
@@ -352,13 +352,46 @@ class Factor(object):
         array([[[ 1.,  1.],
                 [ 1.,  1.],
                 [ 1.,  1.]],
-
                [[ 1.,  1.],
                 [ 1.,  1.],
                 [ 1.,  1.]]])
         """
         return Factor(self.variables, self.cardinality,
                       np.ones(self.values.size), self.statename_dict)
+
+    def reorder(self, order=None, inplace=True):
+        """
+        Changes internal variable ordering
+
+        Examples
+        --------
+        >>> from pgmpy.factors import Factor
+        >>> self = phi = Factor(['x3', 'x1', 'x2'], [4, 3, 2], range(24))
+        >>> order = ['x1', 'x3', 'x2']
+        >>> phi2 = phi.reorder(order, inplace=False)
+        >>> phi3 = phi.reorder(inplace=False)
+        >>> print(phi2.variables)
+        ['x1', 'x3', 'x2']
+        >>> print(phi2.cardinality)
+        [3 4 2]
+        >>> print(phi3.variables)
+        ['x1', 'x2', 'x3']
+        >>> print(phi3.cardinality)
+        [3 2 4]
+        >>> assert np.all(phi3.values.shape == phi3.cardinality)
+        >>> assert np.all(phi2.values.shape == phi2.cardinality)
+        """
+        phi = self if inplace else self.copy()
+
+        if order is not None:
+            sortx = np.array([phi.variables.index(v) for v in order])
+        else:
+            sortx = np.lexsort((phi.variables,))
+        phi.variables = [phi.variables[i] for i in sortx]
+        phi.cardinality = phi.cardinality.take(sortx)
+        phi.values = np.ascontiguousarray(phi.values.transpose(sortx))
+        if not inplace:
+            return phi
 
     def marginalize(self, variables, inplace=True):
         """
@@ -913,34 +946,6 @@ class Factor(object):
 
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
-
-    def evidence_based_reduction(self, query_variables=None,
-                                 evidence={}, inplace=False):
-        """
-        conditions this distribution on evidence
-
-        Example:
-            >>> reduced_joint = joint.evidence_based_reduction(
-            >>>     query_variables, evidence, inplace=False)
-            >>> new_rows = reduced_joint._row_labels()
-            >>> new_vals = reduced_joint.values.ravel()
-            >>> map_vals = new_rows[new_vals.argmax()]
-            >>> map_assign = dict(zip(reduced_joint.variables, map_vals))
-        """
-        reduced_joint = self if inplace else self.copy()
-        if query_variables is None:
-            query_variables = reduced_joint.variables
-        reduced_joint.reduce(evidence)
-        reduced_joint.normalize()
-        # Marginalize over non-query, non-evidence
-        irrelevant_vars = (
-            set(reduced_joint.variables) -
-            (set(evidence.keys()) | set(query_variables))
-        )
-        reduced_joint.marginalize(irrelevant_vars)
-        reduced_joint.normalize()
-        if not inplace:
-            return reduced_joint
 
     def __repr__(self):
         var_card = ", ".join([

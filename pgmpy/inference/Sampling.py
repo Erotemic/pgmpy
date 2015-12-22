@@ -174,7 +174,10 @@ class BayesianModelSampling(Inference):
         """
         sampled = DataFrame(index=range(size), columns=self.topological_order)
         sampled['_weight'] = np.ones(size)
-        evidence_dict = {var: st for var, st in evidence}
+        if isinstance(evidence, dict):
+            evidence_dict = evidence
+        else:
+            evidence_dict = {var: st for var, st in evidence}
         for node in self.topological_order:
             cpd = self.cpds[node]
             states = [state for state in range(cpd.get_cardinality([node])[node])]
@@ -216,7 +219,7 @@ class GibbsSampling(MarkovChain):
 
     Examples:
     ---------
-    Initialization from a BayesianModel object:
+    >>> # Initialization from a BayesianModel object:
     >>> from pgmpy.factors import TabularCPD
     >>> from pgmpy.models import BayesianModel
     >>> intel_cpd = TabularCPD('intel', 2, [[0.7], [0.3]])
@@ -225,11 +228,9 @@ class GibbsSampling(MarkovChain):
     >>> student.add_nodes_from(['intel', 'sat'])
     >>> student.add_edge('intel', 'sat')
     >>> student.add_cpds(intel_cpd, sat_cpd)
-
     >>> from pgmpy.inference import GibbsSampling
     >>> gibbs_chain = GibbsSampling(student)
-
-    Sample from it:
+    >>> # Sample from it:
     >>> gibbs_chain.sample(size=3)
        intel  sat
     0      0    0
@@ -256,15 +257,20 @@ class GibbsSampling(MarkovChain):
         """
         self.variables = np.array(model.nodes())
         self.cardinalities = {var: model.get_cpds(var).variable_card for var in self.variables}
+        import utool as ut
+        varprog = ut.ProgPartial(lbl='var')
+        stateprog = ut.ProgPartial(lbl='state', adjust=True, time_thresh=10)
 
-        for var in self.variables:
+        #for var in self.variables:
+        for var in varprog(self.variables):
             other_vars = [v for v in self.variables if var != v]
             other_cards = [self.cardinalities[v] for v in other_vars]
             cpds = [cpd for cpd in model.cpds if var in cpd.scope()]
             prod_cpd = factor_product(*cpds)
             kernel = {}
             scope = set(prod_cpd.scope())
-            for tup in itertools.product(*[range(card) for card in other_cards]):
+            #for tup in itertools.product(*[range(card) for card in other_cards]):
+            for tup in stateprog(list(itertools.product(*[range(card) for card in other_cards]))):
                 states = [State(v, s) for v, s in zip(other_vars, tup) if v in scope]
                 prod_cpd_reduced = prod_cpd.reduce(states, inplace=False)
                 kernel[tup] = prod_cpd_reduced.values / sum(prod_cpd_reduced.values)
