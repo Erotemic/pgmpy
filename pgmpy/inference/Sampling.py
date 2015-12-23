@@ -9,7 +9,7 @@ from pgmpy.factors.Factor import factor_product
 from pgmpy.inference import Inference
 from pgmpy.models import BayesianModel, MarkovChain, MarkovModel
 from pgmpy.utils.mathext import sample_discrete
-from pgmpy.extern.six.moves import map, range
+from pgmpy.extern.six.moves import range
 
 
 State = namedtuple('State', ['var', 'state'])
@@ -75,11 +75,11 @@ class BayesianModelSampling(Inference):
             if cpd.evidence:
                 indices = [i for i, x in enumerate(self.topological_order) if x in cpd.evidence]
                 evidence = sampled.values[:, [indices]].tolist()
-                weights = list(map(lambda t: cpd.reduce(t[0], inplace=False).values, evidence))
-                sampled[node] = list(map(lambda t: State(node, t), sample_discrete(states, weights)))
+                weights = [cpd.reduce(t[0], inplace=False).values for t in evidence]
+                sampled[node] = [State(node, t) for t in sample_discrete(states, weights)]
             else:
-                sampled[node] = list(map(lambda t: State(node, t),
-                                     sample_discrete(states, cpd.values, size)))
+                sampled[node] = [State(node, t)
+                                 for t in sample_discrete(states, cpd.values, size)]
         return sampled
 
     def rejection_sample(self, evidence=None, size=1):
@@ -180,7 +180,8 @@ class BayesianModelSampling(Inference):
             evidence_dict = {var: st for var, st in evidence}
 
         import utool as ut
-        nodeprog = ut.ProgPartial(lbl='sampling', time_thresh=5, adjust=True)
+        #nodeprog = ut.ProgPartial(lbl='sampling', time_thresh=5, adjust=True)
+        nodeprog = ut.ProgPartial(lbl='sampling', adjust=False, freq=1)
 
         for node in nodeprog(self.topological_order):
             cpd = self.cpds[node]
@@ -196,7 +197,7 @@ class BayesianModelSampling(Inference):
                         sampled.loc[i, '_weight'] *= weights[i][evidence_dict[node]]
                 else:
                     sampled[node] = [State(node, t)
-                                     for t in  sample_discrete(states, weights)]
+                                     for t in sample_discrete(states, weights)]
             else:
                 if node in evidence_dict:
                     sampled[node] = (State(node, evidence_dict[node]), ) * size
@@ -262,13 +263,16 @@ class GibbsSampling(MarkovChain):
             The model from which probabilities will be computed.
         """
         self.variables = np.array(model.nodes())
-        self.cardinalities = {var: model.get_cpds(var).variable_card for var in self.variables}
+        self.cardinalities = {var: model.get_cpds(var).variable_card
+                              for var in self.variables}
         import utool as ut
         varprog = ut.ProgPartial(lbl='var')
-        stateprog = ut.ProgPartial(lbl='state', adjust=True, time_thresh=10)
+        stateprog = ut.ProgPartial(lbl='state', adjust=True, time_thresh=1.0)
+        #stateprog = ut.ProgPartial(lbl='state', adjust=False, freq=1)
 
         #for var in self.variables:
         for var in varprog(self.variables):
+            print('var = %r' % (var,))
             other_vars = [v for v in self.variables if var != v]
             other_cards = [self.cardinalities[v] for v in other_vars]
             cpds = [cpd for cpd in model.cpds if var in cpd.scope()]

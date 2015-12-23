@@ -76,9 +76,19 @@ def sample_discrete(values, weights, size=1):
     -------
     >>> import numpy as np
     >>> from pgmpy.utils.mathext import sample_discrete
+    >>> size = 10
     >>> values = np.array(['v_0', 'v_1', 'v_2'])
-    >>> probabilities = np.array([0.2, 0.5, 0.3])
-    >>> sample_discrete(values, probabilities, 10)
+    >>> weights = np.array([0.2, 0.5, 0.3])
+    >>> sample_discrete(values, weights, size)
+    array(['v_1', 'v_1', 'v_0', 'v_1', 'v_2', 'v_0', 'v_1', 'v_1', 'v_1',
+      'v_2'], dtype='<U3')
+
+    >>> import numpy as np
+    >>> from pgmpy.utils.mathext import sample_discrete
+    >>> size = 10
+    >>> values = np.array([0, 1, 2])
+    >>> weights = np.array([[0.2, 0.5, 0.3], [.1, .1, .8]])
+    >>> sample_discrete(values, weights, size)
     array(['v_1', 'v_1', 'v_0', 'v_1', 'v_2', 'v_0', 'v_1', 'v_1', 'v_1',
       'v_2'], dtype='<U3')
     """
