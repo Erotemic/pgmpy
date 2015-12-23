@@ -178,27 +178,33 @@ class BayesianModelSampling(Inference):
             evidence_dict = evidence
         else:
             evidence_dict = {var: st for var, st in evidence}
-        for node in self.topological_order:
+
+        import utool as ut
+        nodeprog = ut.ProgPartial(lbl='sampling', time_thresh=5, adjust=True)
+
+        for node in nodeprog(self.topological_order):
             cpd = self.cpds[node]
             states = [state for state in range(cpd.get_cardinality([node])[node])]
             if cpd.evidence:
-                indices = [i for i, x in enumerate(self.topological_order) if x in cpd.evidence]
+                indices = [i for i, x in enumerate(self.topological_order)
+                           if x in cpd.evidence]
                 evidence = sampled.values[:, [indices]].tolist()
-                weights = list(map(lambda t: cpd.reduce(t[0], inplace=False).values, evidence))
+                weights = [cpd.reduce(t[0], inplace=False).values for t in  evidence]
                 if node in evidence_dict:
                     sampled[node] = (State(node, evidence_dict[node]), ) * size
                     for i in range(size):
                         sampled.loc[i, '_weight'] *= weights[i][evidence_dict[node]]
                 else:
-                    sampled[node] = list(map(lambda t: State(node, t), sample_discrete(states, weights)))
+                    sampled[node] = [State(node, t)
+                                     for t in  sample_discrete(states, weights)]
             else:
                 if node in evidence_dict:
                     sampled[node] = (State(node, evidence_dict[node]), ) * size
                     for i in range(size):
                         sampled.loc[i, '_weight'] *= cpd.values[evidence_dict[node]]
                 else:
-                    sampled[node] = list(map(lambda t: State(node, t),
-                                         sample_discrete(states, cpd.values, size)))
+                    sampled[node] = [State(node, t) for t in
+                                     sample_discrete(states, cpd.values, size)]
         return sampled
 
 

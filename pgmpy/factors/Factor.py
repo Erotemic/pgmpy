@@ -111,7 +111,7 @@ class Factor(object):
 
         if self.statename_dict is not None:
             try:
-                _implicitcard = list(map(len, self.statenames))
+                _implicitcard = list(map(len, self._statenames()))
             except KeyError as ex:
                 raise ValueError(
                      'Variable %s does not have cardinality or a value in statename_dict' % (ex,))
@@ -152,67 +152,6 @@ class Factor(object):
         else:
             var_idx = self._internal_varindex(self.variables[0], index_or_statename)
         return self.values[var_idx]
-
-    def _row_labels(self, asindex=False):
-        """
-        Returns a list of statments corresponding to each value (in values.ravel())
-        """
-        row_labels = list(product(*self._statenames(asindex=asindex)))
-        return row_labels
-
-    @property
-    def statenames(self):
-        """
-        property alias
-        """
-        return self._statenames()
-
-    def _statenames(self, variables=None, cardinality=None, asindex=False):
-        """
-        Returns the list of statenames associated with each row in this factor
-
-        Parameters
-        ----------
-        variables: defaults to all variables
-        cardinality: needs to be specified only if statename_dict has not been assigned
-
-        Examples
-        --------
-        >>> from pgmpy.factors import Factor
-        >>> statename_dict = {'grade': ['A', 'B', 'F'],
-        >>>                   'intel': ['high', 'low'],}
-        >>> phi = Factor(['grade', 'intel'], [2, 2], [.9, .1, .1, .9], statename_dict)
-        >>> phi._statenames()
-        [['A', 'F'], ['high', 'low']]
-        """
-        if variables is None and cardinality is None:
-            variables = self.variables
-            cardinality = self.cardinality
-        if asindex:
-            return [list(range(card))
-                    for var, card in zip(variables, cardinality)]
-
-        if self.statename_dict is None:
-            # Old approach
-            return [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
-                    for var, card in zip(variables, cardinality)]
-        elif self.cardinality is None:
-            # New approach
-            return [self.statename_dict[var] for var in variables]
-            #return [self.statename_dict[var][:card]
-            #for var, card in zip(variables, cardinality)]
-        else:
-            # Hybrid aproach
-            statename_lists = [
-                (
-                    #self.statename_dict[var][:card]
-                    self.statename_dict[var][:card]
-                    if self.statename_dict.get(var, None) is not None else
-                    ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
-                )
-                for var, card in zip(variables, cardinality)
-            ]
-            return statename_lists
 
     def scope(self):
         """
@@ -588,7 +527,7 @@ class Factor(object):
         if (all(isinstance(item, (list, tuple)) and len(item) == 2 for item in values) and
              all(isinstance(state, six.string_types) for var, state in values) and
              self.statename_dict is not None):
-            # rectify semantic statenames
+            # rectify semantic state names
             values = [(var, self._internal_varindex(var, state)) for var, state in values]
 
         if (any(isinstance(value, six.string_types) for value in values) or
@@ -906,8 +845,66 @@ class Factor(object):
         return Factor(self.scope(), self.cardinality, self.values,
                       statename_dict)
 
-    def __str__(self):
-        return self._str(phi_or_p='phi')
+    @property
+    def statenames(self):
+        """
+        property alias
+        """
+        return self._statenames()
+
+    def _statenames(self, variables=None, cardinality=None, asindex=False):
+        """
+        Returns the list of statenames associated with each row in this factor
+
+        Parameters
+        ----------
+        variables: defaults to all variables
+        cardinality: needs to be specified only if statename_dict has not been assigned
+
+        Examples
+        --------
+        >>> from pgmpy.factors import Factor
+        >>> statename_dict = {'grade': ['A', 'B', 'F'],
+        >>>                   'intel': ['high', 'low'],}
+        >>> phi = Factor(['grade', 'intel'], [2, 2], [.9, .1, .1, .9], statename_dict)
+        >>> phi._statenames()
+        [['A', 'F'], ['high', 'low']]
+        """
+        if variables is None and cardinality is None:
+            variables = self.variables
+            cardinality = self.cardinality
+        if asindex:
+            return [list(range(card))
+                    for var, card in zip(variables, cardinality)]
+
+        if self.statename_dict is None:
+            # Old approach
+            return [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                    for var, card in zip(variables, cardinality)]
+        elif self.cardinality is None:
+            # New approach
+            return [self.statename_dict[var] for var in variables]
+            #return [self.statename_dict[var][:card]
+            #for var, card in zip(variables, cardinality)]
+        else:
+            # Hybrid aproach
+            statename_lists = [
+                (
+                    #self.statename_dict[var][:card]
+                    self.statename_dict[var][:card]
+                    if self.statename_dict.get(var, None) is not None else
+                    ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                )
+                for var, card in zip(variables, cardinality)
+            ]
+            return statename_lists
+
+    def _row_labels(self, asindex=False):
+        """
+        Returns a list of statments corresponding to each value (in values.ravel())
+        """
+        row_labels = list(product(*self._statenames(asindex=asindex)))
+        return row_labels
 
     def _str(self, phi_or_p="phi", tablefmt=None, sort=False, maxrows=None):
         """
@@ -932,7 +929,7 @@ class Factor(object):
         factor_table = []
 
         row_values = self.values.ravel()
-        row_labels = list(product(*self.statenames))
+        row_labels = self._row_labels()
         factor_table = [list(lbls) + [val]
                         for lbls, val in zip(row_labels, row_values)]
 
@@ -946,6 +943,9 @@ class Factor(object):
 
         return tabulate(factor_table, headers=string_header, tablefmt=tablefmt,
                         floatfmt=".4f")
+
+    def __str__(self):
+        return self._str(phi_or_p='phi')
 
     def __repr__(self):
         var_card = ", ".join([

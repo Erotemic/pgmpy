@@ -164,6 +164,21 @@ class BayesianModel(DirectedGraph):
                 self.cpds.append(cpd)
                 self._var_to_cpd_index[cpd.variable] = len(self.cpds) - 1
 
+    @property
+    def statename_dict(self):
+        model_statename_dict = {}
+        for cpd in self.cpds:
+            if cpd.statename_dict is not None:
+                model_statename_dict.update(cpd.statename_dict)
+        return model_statename_dict
+
+    def get_number_of_states(self, variables=None):
+        if variables is None:
+            variable_cards = [cpd.variable_card for cpd in self.cpds]
+        else:
+            variable_cards = [self.var_to_cpd(var).variable_card for var in variables]
+        return np.prod(variable_cards)
+
     def get_cpds(self, node=None):
         """
         Returns the cpds that have been added till now to the graph
