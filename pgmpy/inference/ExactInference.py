@@ -9,6 +9,7 @@ from pgmpy.extern.six.moves import filter, range
 from pgmpy.inference import Inference
 from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree
+from pgmpy.utils import StateNameDecorator
 
 
 class VariableElimination(Inference):
@@ -75,6 +76,8 @@ class VariableElimination(Inference):
         final_phi = factor_product(*final_distribution)
         return final_phi
 
+    @StateNameDecorator(argument='evidence', return_val=None)
+    # def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
         """
         Implementation of a generalized variable elimination.
@@ -115,75 +118,75 @@ class VariableElimination(Inference):
             query_var_factor[query_var] = qvar_phi
         return query_var_factor
 
-    def map_query(self, variables=None, evidence=None, elimination_order=None, multivar=False):
-        """
-        Computes the MAP Query over variables given the evidence.
+    # def map_query(self, variables=None, evidence=None, elimination_order=None, multivar=False):
+    #     """
+    #     Computes the MAP Query over variables given the evidence.
 
-        Parameters
-        ----------
-        variables: list
-            list of variables over which we want to compute the max-marginal.
-        evidence: dict
-            a dict key, value pair as {var: state_of_var_observed}
-            None if no evidence
-        elimination_order: list
-            order of variable eliminations (if nothing is provided) order is
-            computed automatically
+    #     Parameters
+    #     ----------
+    #     variables: list
+    #         list of variables over which we want to compute the max-marginal.
+    #     evidence: dict
+    #         a dict key, value pair as {var: state_of_var_observed}
+    #         None if no evidence
+    #     elimination_order: list
+    #         order of variable eliminations (if nothing is provided) order is
+    #         computed automatically
 
-        Examples
-        --------
-        >>> from pgmpy.inference import VariableElimination
-        >>> from pgmpy.models import BayesianModel
-        >>> import numpy as np
-        >>> import pandas as pd
-        >>> rng = np.random.RandomState(0)
-        >>> values = pd.DataFrame(rng.randint(low=0, high=2, size=(1000, 5)),
-        ...                       columns=['A', 'B', 'C', 'D', 'E'])
-        >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
-        >>> model.fit(values)
-        >>> self = inference = VariableElimination(model)
-        >>> variables = ['A', 'B']
-        >>> evidence = None
-        >>> elimination_order = None
-        >>> map_query_results = inference.map_query(variables)
-        >>> print(repr(map_query_results))
-        {'A': 0, 'B': 0}
-        >>> evidence = {'D': 0, 'E': 0}
-        >>> map_query_results = inference.map_query(variables, evidence)
-        >>> print(repr(map_query_results))
-        {'A': 0, 'B': 0}
-        """
-        #evidence = self._ensure_internal_evidence(evidence)
-        elimination_variables = set(self.variables) - set(evidence.keys()) if evidence else set()
-        operation = 'maximize'
-        if multivar:
-            # Compute assignments over all variables jointly
-            final_phi = self.compute_joint(elimination_variables, operation,
-                                           evidence=evidence,
-                                           elimination_order=elimination_order)
+    #     Examples
+    #     --------
+    #     >>> from pgmpy.inference import VariableElimination
+    #     >>> from pgmpy.models import BayesianModel
+    #     >>> import numpy as np
+    #     >>> import pandas as pd
+    #     >>> rng = np.random.RandomState(0)
+    #     >>> values = pd.DataFrame(rng.randint(low=0, high=2, size=(1000, 5)),
+    #     ...                       columns=['A', 'B', 'C', 'D', 'E'])
+    #     >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
+    #     >>> model.fit(values)
+    #     >>> self = inference = VariableElimination(model)
+    #     >>> variables = ['A', 'B']
+    #     >>> evidence = None
+    #     >>> elimination_order = None
+    #     >>> map_query_results = inference.map_query(variables)
+    #     >>> print(repr(map_query_results))
+    #     {'A': 0, 'B': 0}
+    #     >>> evidence = {'D': 0, 'E': 0}
+    #     >>> map_query_results = inference.map_query(variables, evidence)
+    #     >>> print(repr(map_query_results))
+    #     {'A': 0, 'B': 0}
+    #     """
+    #     #evidence = self._ensure_internal_evidence(evidence)
+    #     elimination_variables = set(self.variables) - set(evidence.keys()) if evidence else set()
+    #     operation = 'maximize'
+    #     if multivar:
+    #         # Compute assignments over all variables jointly
+    #         final_phi = self.compute_joint(elimination_variables, operation,
+    #                                        evidence=evidence,
+    #                                        elimination_order=elimination_order)
 
-            argmax = np.argmax(final_phi.values)
-            assignment = final_phi.assignment([argmax])[0]
-        else:
-            # Compute assignments over each variable independantly
-            query_var_factor = self._variable_elimination(elimination_variables, operation,
-                                                          evidence=evidence,
-                                                          elimination_order=elimination_order)
-            # To handle the case when no argument is passed then
-            # _variable_elimination returns a dict.
-            if isinstance(query_var_factor, dict):
-                query_var_factor = query_var_factor.values()
-            distribution = factor_product(*query_var_factor)
-            argmax = np.argmax(distribution.values)
-            assignment = distribution.assignment([argmax])[0]
+    #         argmax = np.argmax(final_phi.values)
+    #         assignment = final_phi.assignment([argmax])[0]
+    #     else:
+    #         # Compute assignments over each variable independantly
+    #         query_var_factor = self._variable_elimination(elimination_variables, operation,
+    #                                                       evidence=evidence,
+    #                                                       elimination_order=elimination_order)
+    #         # To handle the case when no argument is passed then
+    #         # _variable_elimination returns a dict.
+    #         if isinstance(query_var_factor, dict):
+    #             query_var_factor = query_var_factor.values()
+    #         distribution = factor_product(*query_var_factor)
+    #         argmax = np.argmax(distribution.values)
+    #         assignment = distribution.assignment([argmax])[0]
 
-        map_query_results = {var: value for (var, value) in assignment}
+    #     map_query_results = {var: value for (var, value) in assignment}
 
-        if not variables:
-            return_dict = map_query_results
-        else:
-            return_dict = {var: map_query_results[var] for var in variables}
-        return return_dict
+    #     if not variables:
+    #         return_dict = map_query_results
+    #     else:
+    #         return_dict = {var: map_query_results[var] for var in variables}
+    #     return return_dict
 
     def max_marginal(self, variables=None, evidence=None, elimination_order=None):
         """
@@ -228,7 +231,8 @@ class VariableElimination(Inference):
             query_var_factor = query_var_factor.values()
         return np.max(factor_product(*query_var_factor).values)
 
-    def query(self, variables, evidence=None, elimination_order=None, multivar=False):
+    @StateNameDecorator(argument=None, return_val=True)
+    def map_query(self, variables=None, evidence=None, elimination_order=None):
         """
         Parameters
         ----------
@@ -254,8 +258,6 @@ class VariableElimination(Inference):
         >>> inference = VariableElimination(model)
         >>> phi_query = inference.query(['A', 'B'])
         """
-        if multivar:
-            raise NotImplementedError('no multivar for marginal query')
         return self._variable_elimination(variables, 'marginalize',
                                           evidence=evidence, elimination_order=elimination_order)
 
@@ -355,8 +357,6 @@ class BeliefPropagation(Inference):
         model for which inference is to performed
     """
     def __init__(self, model):
-        from pgmpy.models import JunctionTree
-
         super(BeliefPropagation, self).__init__(model)
 
         if not isinstance(model, JunctionTree):
@@ -561,7 +561,6 @@ class BeliefPropagation(Inference):
         self._calibrate_junction_tree(operation='maximize')
 
     def _clique_subtree(self, variables, operation, evidence=None):
-        #evidence = self._ensure_internal_evidence(evidence)
         is_calibrated = self._is_converged(operation=operation)
         # Calibrate the junction tree if not calibrated
         if not is_calibrated:

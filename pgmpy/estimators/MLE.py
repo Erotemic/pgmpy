@@ -2,6 +2,7 @@ from pgmpy.estimators import BaseEstimator
 from pgmpy.factors import TabularCPD
 from pgmpy.models import BayesianModel
 import numpy as np
+import pandas as pd
 
 
 class MaximumLikelihoodEstimator(BaseEstimator):
@@ -10,8 +11,7 @@ class MaximumLikelihoodEstimator(BaseEstimator):
 
     Parameters
     ----------
-    model: pgmpy.models.BayesianModel or pgmpy.models.MarkovModel or pgmpy.models.NoisyOrModel
-        model for which parameter estimation is to be done
+    model: A pgmpy.models.BayesianModel instance
 
     data: pandas DataFrame object
         datafame object with column names same as the variable names of the network
@@ -29,7 +29,7 @@ class MaximumLikelihoodEstimator(BaseEstimator):
     """
     def __init__(self, model, data):
         if not isinstance(model, BayesianModel):
-            raise NotImplementedError("Maximum Likelihood Estimate is only implemented of BayesianModel")
+            raise NotImplementedError("Maximum Likelihood Estimate is only implemented for BayesianModel")
 
         super(MaximumLikelihoodEstimator, self).__init__(model, data)
 
@@ -40,8 +40,7 @@ class MaximumLikelihoodEstimator(BaseEstimator):
         Returns
         -------
         parameters: list
-            List containing all the parameters. For Bayesian Model it would be list of CPDs'
-            for Markov Model it would be a list of factors
+            List of TabularCPDs, one for each variable of the model
 
         Examples
         --------
@@ -61,6 +60,7 @@ class MaximumLikelihoodEstimator(BaseEstimator):
             parents = self.model.get_parents(node)
             if not parents:
                 state_counts = self.data.ix[:, node].value_counts()
+                state_counts = state_counts.reindex(sorted(state_counts.index))
                 cpd = TabularCPD(node, self.node_card[node],
                                  state_counts.values[:, np.newaxis])
                 cpd.normalize()
@@ -68,10 +68,15 @@ class MaximumLikelihoodEstimator(BaseEstimator):
             else:
                 parent_card = np.array([self.node_card[parent] for parent in parents])
                 var_card = self.node_card[node]
-                state_counts = self.data.groupby([node] + self.model.predecessors(node)).count()
-                values = state_counts.iloc[:, 0].reshape(var_card,
-                                                         np.product(parent_card))
-                cpd = TabularCPD(node, var_card, values,
+
+                values = self.data.groupby([node] + parents).size().unstack(parents).fillna(0)
+                if not len(values.columns) == np.prod(parent_card):
+                    # some columns are missing if for some states of the parents no data was observed.
+                    # reindex to add missing columns and fill in uniform (conditional) probabilities:
+                    full_index = pd.MultiIndex.from_product([range(card) for card in parent_card], names=parents)
+                    values = values.reindex(columns=full_index).fillna(1.0/var_card)
+
+                cpd = TabularCPD(node, var_card, np.array(values),
                                  evidence=parents,
                                  evidence_card=parent_card.astype('int'))
                 cpd.normalize()

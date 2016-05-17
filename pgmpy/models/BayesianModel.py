@@ -3,16 +3,25 @@
 import itertools
 from collections import defaultdict
 import logging
+from operator import mul
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 
 from pgmpy.base import DirectedGraph
+<<<<<<< HEAD
 from pgmpy.factors import TabularCPD, factor_product
 from pgmpy.independencies import Independencies
 from pgmpy.extern import six
 # from pgmpy.extern.six.moves import range
+=======
+from pgmpy.factors import TabularCPD, JointProbabilityDistribution, Factor
+from pgmpy.independencies import Independencies
+from pgmpy.extern import six
+from pgmpy.extern.six.moves import range, reduce
+from pgmpy.models.MarkovModel import MarkovModel
+>>>>>>> dev
 
 
 class BayesianModel(DirectedGraph):
@@ -81,6 +90,7 @@ class BayesianModel(DirectedGraph):
     >>> len(G)  # number of nodes in graph
     3
     """
+
     def __init__(self, ebunch=None):
         super(BayesianModel, self).__init__()
         if ebunch:
@@ -112,7 +122,7 @@ class BayesianModel(DirectedGraph):
             raise ValueError('Self loops are not allowed.')
         if u in self.nodes() and v in self.nodes() and nx.has_path(self, v, u):
             raise ValueError(
-                 'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
+                'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
         else:
             super(BayesianModel, self).add_edge(u, v, **kwargs)
 
@@ -292,17 +302,22 @@ class BayesianModel(DirectedGraph):
         for node in self.nodes():
             cpd = self.get_cpds(node=node)
             if isinstance(cpd, TabularCPD):
-                evidence = cpd.evidence
+                evidence = cpd.variables[:0:-1]
                 parents = self.get_parents(node)
                 if set(evidence if evidence else []) != set(parents if parents else []):
                     raise ValueError("CPD associated with %s doesn't have "
                                      "proper parents associated with it." % node)
+<<<<<<< HEAD
                 marginal_values = cpd.to_factor().marginalize([node], inplace=False).values.flatten('C')
                 # atol = 0.01
                 # diff = 1.0 - marginal_values
                 # is_close = diff < atol
                 if not np.allclose(marginal_values,
                                    np.ones(np.product(cpd.evidence_card)),
+=======
+                if not np.allclose(cpd.to_factor().marginalize([node], inplace=False).values.flatten('C'),
+                                   np.ones(np.product(cpd.cardinality[:0:-1])),
+>>>>>>> dev
                                    atol=0.01):
                     # if not np.all(is_close):
                     #     if True:
@@ -321,12 +336,23 @@ class BayesianModel(DirectedGraph):
 
     def _get_ancestors_of(self, obs_nodes_list):
         """
-        Returns a list of all ancestors of all the observed nodes.
+        Returns a list of all ancestors of all the observed nodes including the
+        node itself.
 
         Parameters
         ----------
         obs_nodes_list: string, list-type
             name of all the observed nodes
+
+        Examples
+        --------
+        >>> from pgmpy.models import BayesianModel
+        >>> model = BayesianModel([('D', 'G'), ('I', 'G'), ('G', 'L'),
+        ...                        ('I', 'L')])
+        >>> model._get_ancestors_of('G')
+        {'D', 'G', 'I'}
+        >>> model._get_ancestors_of(['G', 'I'])
+        {'D', 'G', 'I'}
         """
         if not isinstance(obs_nodes_list, (list, tuple)):
             obs_nodes_list = [obs_nodes_list]
@@ -412,7 +438,7 @@ class BayesianModel(DirectedGraph):
         Parameters
         ----------
         variables: str or array like
-            variables whose local independencies are to found.
+            variables whose local independencies are to be found.
 
         Examples
         --------
@@ -432,8 +458,8 @@ class BayesianModel(DirectedGraph):
             """
             Returns the descendents of node.
 
-            Since there can't be any cycles in the Bayesian Network. This is a
-            very simple dfs which doen't remember which nodes it has visited.
+            Since Bayesian Networks are acyclic, this is a very simple dfs
+            which does not remember which nodes it has visited.
             """
             descendents = []
             visit = [node]
@@ -444,12 +470,12 @@ class BayesianModel(DirectedGraph):
                 descendents.extend(neighbors)
             return descendents
 
-        from pgmpy.independencies import Independencies
         independencies = Independencies()
         for variable in [variables] if isinstance(variables, str) else variables:
-            independencies.add_assertions([variable, set(self.nodes()) - set(dfs(variable)) -
-                                           set(self.get_parents(variable)) - {variable},
-                                           set(self.get_parents(variable))])
+            non_descendents = set(self.nodes()) - {variable} - set(dfs(variable))
+            parents = set(self.get_parents(variable))
+            if non_descendents - parents:
+                independencies.add_assertions([variable, non_descendents - parents, parents])
         return independencies
 
     def is_active_trail(self, start, end, observed=None):
@@ -474,11 +500,11 @@ class BayesianModel(DirectedGraph):
         >>> from pgmpy.models import BayesianModel
         >>> student = BayesianModel()
         >>> student.add_nodes_from(['diff', 'intel', 'grades', 'letter', 'sat'])
-        >>> student.add_edges_from([('diff', 'grades'), ('intel', 'grades'), ('grade', 'letter'),
+        >>> student.add_edges_from([('diff', 'grades'), ('intel', 'grades'), ('grades', 'letter'),
         ...                         ('intel', 'sat')])
         >>> student.is_active_trail('diff', 'intel')
         False
-        >>> student.is_active_trail('grade', 'sat')
+        >>> student.is_active_trail('grades', 'sat')
         True
         """
         if end in self.active_trail_nodes(start, observed):
@@ -488,7 +514,7 @@ class BayesianModel(DirectedGraph):
 
     def get_independencies(self, latex=False):
         """
-        Compute independencies in Bayesian Network.
+        Computes independencies in the Bayesian Network, by checking d-seperation.
 
         Parameters
         ----------
@@ -499,21 +525,20 @@ class BayesianModel(DirectedGraph):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> student = BayesianModel()
-        >>> student.add_nodes_from(['diff', 'intel', 'grades', 'letter', 'sat'])
-        >>> student.add_edges_from([('diff', 'grades'), ('intel', 'grades'), ('grade', 'letter'),
-        ...                         ('intel', 'sat')])
-        >>> student.get_independencies()
+        >>> chain = BayesianModel([('X', 'Y'), ('Y', 'Z')])
+        >>> chain.get_independencies()
+        (X _|_ Z | Y)
+        (Z _|_ X | Y)
         """
         independencies = Independencies()
         for start in (self.nodes()):
-            for r in (1, len(self.nodes())):
-                for observed in itertools.combinations(self.nodes(), r):
-                    independent_variables = self.active_trail_nodes(start, observed=observed)
-                    independent_variables = set(independent_variables) - {start}
-                    if independent_variables:
-                        independencies.add_assertions([start, independent_variables,
-                                                       observed])
+            rest = set(self.nodes()) - {start}
+            for r in range(len(rest)):
+                for observed in itertools.combinations(rest, r):
+                    d_seperated_variables = rest - set(observed) - set(
+                        self.active_trail_nodes(start, observed=observed))
+                    if d_seperated_variables:
+                        independencies.add_assertions([start, d_seperated_variables, observed])
 
         independencies.reduce()
 
@@ -539,7 +564,6 @@ class BayesianModel(DirectedGraph):
         [('diff', 'intel'), ('diff', 'grade'), ('intel', 'grade'),
         ('intel', 'SAT'), ('grade', 'letter')]
         """
-        from pgmpy.models import MarkovModel
         moral_graph = self.moralize()
         mm = MarkovModel(moral_graph.edges())
         mm.add_factors(*[cpd.to_factor() for cpd in self.cpds])
@@ -680,9 +704,36 @@ class BayesianModel(DirectedGraph):
         # TODO: refer to IMap class for explanation why this is not implemented.
         pass
 
-    def is_iequivalent(self, model):
-        pass
+    def get_immoralities(self):
+        """
+        Finds all the immoralities in the model
+        A v-structure X -> Z <- Y is an immorality if there is no direct edge between X and Y .
 
+        Returns
+        -------
+        set: A set of all the immoralities in the model
+
+        Examples
+        ---------
+        >>> from pgmpy.models import BayesianModel
+        >>> student = BayesianModel()
+        >>> student.add_edges_from([('diff', 'grade'), ('intel', 'grade'),
+        ...                         ('intel', 'SAT'), ('grade', 'letter')])
+        >>> student.get_immoralities()
+        {('diff','intel')}
+        """
+        immoralities = set()
+        for node in self.nodes():
+            for parents in itertools.combinations(self.predecessors(node), 2):
+                if not self.has_edge(parents[0], parents[1]) and not self.has_edge(parents[1], parents[0]):
+                    immoralities.add(tuple(sorted(parents)))
+        return immoralities
+
+    def is_iequivalent(self, model):
+        """
+        Checks whether the given model is I-equivalent
+
+<<<<<<< HEAD
     def is_imap(self, independence):
         pass
 
@@ -717,3 +768,82 @@ class BayesianModel(DirectedGraph):
             else:
                 evidence[key] = val
         return evidence
+=======
+        Two graphs G1 and G2 are said to be I-equivalent if they have same skeleton
+        and have same set of immoralities.
+
+        Note: For same skeleton different names of nodes can work but for immoralities
+        names of nodes must be same
+
+        Parameters
+        ----------
+        model : A Bayesian model object, for which you want to check I-equivalence
+
+        Returns
+        --------
+        boolean : True if both are I-equivalent, False otherwise
+
+        Examples
+        --------
+        >>> from pgmpy.models import BayesianModel
+        >>> G = BayesianModel()
+        >>> G.add_edges_from([('V', 'W'), ('W', 'X'),
+        ...                   ('X', 'Y'), ('Z', 'Y')])
+        >>> G1 = BayesianModel()
+        >>> G1.add_edges_from([('W', 'V'), ('X', 'W'),
+        ...                    ('X', 'Y'), ('Z', 'Y')])
+        >>> G.is_iequivalent(G1)
+        True
+
+        """
+        if not isinstance(model, BayesianModel):
+            raise TypeError('model must be an instance of Bayesian Model')
+        skeleton = nx.algorithms.isomorphism.GraphMatcher(self.to_undirected(), model.to_undirected())
+        if skeleton.is_isomorphic() and self.get_immoralities() == model.get_immoralities():
+            return True
+        return False
+
+    def is_imap(self, JPD):
+        """
+        Checks whether the bayesian model is Imap of given JointProbabilityDistribution
+
+        Parameters
+        -----------
+        JPD : An instance of JointProbabilityDistribution Class, for which you want to
+            check the Imap
+
+        Returns
+        --------
+        boolean : True if bayesian model is Imap for given Joint Probability Distribution
+                False otherwise
+        Examples
+        --------
+        >>> from pgmpy.models import BayesianModel
+        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors import JointProbabilityDistribution
+        >>> G = BayesianModel([('diff', 'grade'), ('intel', 'grade')])
+        >>> diff_cpd = TabularCPD('diff', 2, [[0.2], [0.8]])
+        >>> intel_cpd = TabularCPD('intel', 3, [[0.5], [0.3], [0.2]])
+        >>> grade_cpd = TabularCPD('grade', 3,
+        ...                        [[0.1,0.1,0.1,0.1,0.1,0.1],
+        ...                         [0.1,0.1,0.1,0.1,0.1,0.1],
+        ...                         [0.8,0.8,0.8,0.8,0.8,0.8]],
+        ...                        evidence=['diff', 'intel'],
+        ...                        evidence_card=[2, 3])
+        >>> G.add_cpds(diff_cpd, intel_cpd, grade_cpd)
+        >>> val = [0.01, 0.01, 0.08, 0.006, 0.006, 0.048, 0.004, 0.004, 0.032,
+                   0.04, 0.04, 0.32, 0.024, 0.024, 0.192, 0.016, 0.016, 0.128]
+        >>> JPD = JointProbabilityDistribution(['diff', 'intel', 'grade'], [2, 3, 3], val)
+        >>> G.is_imap(JPD)
+        True
+        """
+        if not isinstance(JPD, JointProbabilityDistribution):
+            raise TypeError("JPD must be an instance of JointProbabilityDistribution")
+        factors = [cpd.to_factor() for cpd in self.get_cpds()]
+        factor_prod = reduce(mul, factors)
+        JPD_fact = Factor(JPD.variables, JPD.cardinality, JPD.values)
+        if JPD_fact == factor_prod:
+            return True
+        else:
+            return False
+>>>>>>> dev
