@@ -707,6 +707,69 @@ class Factor(object):
         else:
             return self._str(phi_or_p='phi')
 
+    def _statenames(self, variables=None, cardinality=None, asindex=False):
+        """
+        REWORK: temporary eventalias transition
+
+        Returns the list of statenames associated with each row in this factor
+
+        Parameters
+        ----------
+        variables: defaults to all variables
+        cardinality: needs to be specified only if state_names has not been assigned
+        asindex: returns variable indicies of statenames instead
+
+        Examples
+        --------
+        >>> from pgmpy.factors import Factor
+        >>> statename_dict = {'grade': ['A', 'B', 'F'],
+        >>>                   'intel': ['high', 'low'],}
+        >>> phi = Factor(['grade', 'intel'], [2, 2], [.9, .1, .1, .9], statename_dict)
+        >>> phi._statenames()
+        [['A', 'F'], ['high', 'low']]
+        """
+        if variables is None and cardinality is None:
+            variables = self.variables
+            cardinality = self.cardinality
+        if asindex:
+            # Return indicies into the list instead
+            return [list(range(card))
+                    for var, card in zip(variables, cardinality)]
+
+        if self.state_names is None:
+            # Old approach When state_names is not given
+            statename_lists = [['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                               for var, card in zip(variables, cardinality)]
+        elif self.cardinality is None:
+            # New approach
+            statename_lists = [self.state_names[var] for var in variables]
+        else:
+            # Hybrid aproach
+            statename_lists = [
+                (
+                    self.state_names[var][:card]
+                    if self.state_names.get(var, None) is not None else
+                    ['{var}_{i}'.format(var=var, i=i) for i in range(card)]
+                )
+                for var, card in zip(variables, cardinality)
+            ]
+        return statename_lists
+
+    @property
+    def variable_statenames(self):
+        """ DEPRICATE: temporary eventalias transition """
+        return self._statenames([self.variable], [self.variable_card])[0]
+
+    @property
+    def evidence_statenames(self):
+        """ DEPRICATE: temporary eventalias transition """
+        return self._statenames(self.evidence, self.evidence_card)
+
+    @property
+    def statename_dict(self):
+        """ DEPRICATE: temporary eventalias transition """
+        return self.state_names
+
     def _str(self, phi_or_p="phi", tablefmt="fancy_grid", print_state_names=True):
         """
         Generate the string from `__str__` method.

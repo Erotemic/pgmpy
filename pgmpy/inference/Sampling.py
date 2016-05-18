@@ -193,7 +193,8 @@ class BayesianModelSampling(Inference):
             if evidence:
                 evidence_values = sampled.ix[:, evidence].values
                 cached_values = self.pre_compute_reduce(node)
-                weights = list(map(lambda t: cached_values[tuple(t)], evidence_values))
+                # Changed map lambda to list comp
+                weights = [cached_values[tuple(t)] for t in evidence_values]
                 if node in evidence_dict:
                     sampled[node] = evidence_dict[node]
                     for i in range(size):

@@ -90,6 +90,10 @@ class BayesianModel(DirectedGraph):
             self.add_edges_from(ebunch)
         self.cpds = []
         self.cardinalities = defaultdict(int)
+        # <eventalias>
+        # Maintain inverted index from variables into cpds
+        self._var_to_cpd_index = {}
+        # </eventalias>
 
     def add_edge(self, u, v, **kwargs):
         """
@@ -165,6 +169,9 @@ class BayesianModel(DirectedGraph):
                     break
             else:
                 self.cpds.append(cpd)
+                # <eventalias>
+                self._var_to_cpd_index[cpd.variable] = len(self.cpds) - 1
+                # </eventalias>
 
     def get_cpds(self, node=None):
         """
@@ -221,6 +228,11 @@ class BayesianModel(DirectedGraph):
             if isinstance(cpd, six.string_types):
                 cpd = self.get_cpds(cpd)
             self.cpds.remove(cpd)
+        # <eventalias>
+        # rebuild cpd variable index
+        self._var_to_cpd_index = {cpd.variable: index
+                                  for index, cpd in enumerate(self.cpds)}
+        # </eventalias>
 
     def check_model(self):
         """
@@ -727,3 +739,66 @@ class BayesianModel(DirectedGraph):
             return True
         else:
             return False
+
+    def _ensure_internal_evidence(self, external_evidence):
+        """
+        RECTIFY: temporary eventalias transition
+        Ensures that the evidence dictionary uses internal indicies.
+
+        If external string indicies are given, then this function maps them to the
+        appropriate internal integral index.
+
+        TODO: Use this function to rectify external state names with internal
+        ones.
+        """
+        if not hasattr(self, 'var2_cpd'):
+            raise NotImplementedError('implement var2_cpd')
+        if external_evidence is None:
+            return external_evidence
+        evidence = {}
+        for key, val in external_evidence.items():
+            if isinstance(val, six.string_types):
+                evidence[key] = self.var2_cpd[key]._internal_varindex(key, val)
+            else:
+                evidence[key] = val
+        return evidence
+
+    @property
+    def statename_dict(self):
+        """
+        RECTIFY: temporary eventalias transition
+        """
+        model_statename_dict = {}
+        for cpd in self.cpds:
+            if cpd.statename_dict is not None:
+                model_statename_dict.update(cpd.statename_dict)
+        return model_statename_dict
+
+    def get_number_of_states(self, variables=None):
+        """
+        RECTIFY: temporary eventalias transition
+        """
+        if variables is None:
+            variable_cards = [cpd.variable_card for cpd in self.cpds]
+        else:
+            variable_cards = [self.var_to_cpd(var).variable_card for var in variables]
+        return np.prod(variable_cards)
+
+    def var_to_cpd(self, variable):
+        """
+        RECTIFY: temporary eventalias transition
+
+        Returns the CPD associated with the variable ``variable``
+
+        Parameters
+        ----------
+        variable : str
+            The variable name of the desired CPD
+
+        Returns
+        -------
+        cpd: TabularCPD
+        """
+        index = self._var_to_cpd_index[variable]
+        cpd = self.cpds[index]
+        return cpd

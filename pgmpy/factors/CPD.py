@@ -139,9 +139,12 @@ class TabularCPD(Factor):
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
+        # <eventalias>
+        self.evidence = evidence
+        # </eventalias>
+
         super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'),
                                                      state_names=self.state_names)
-
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
@@ -184,6 +187,10 @@ class TabularCPD(Factor):
 
     def _str(self, phi_or_p="p", tablefmt="fancy_grid"):
         return super(self, TabularCPD)._str(phi_or_p, tablefmt)
+
+    def _cpdstr(self, *args, **kwargs):
+        """ DEPRICATE: temporary eventalias transition """
+        return self._make_table_str(*args, **kwargs)
 
     def _make_table_str(self, tablefmt="fancy_grid", print_state_names=True):
         headers_list = []
